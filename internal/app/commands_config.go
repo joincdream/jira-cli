@@ -3,17 +3,18 @@ package app
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"tools/jira/pkg"
 )
 
 // ConfigureCommand provides an interactive wizard to create/update Jira configuration.
 type ConfigureCommand struct {
-	stdin io.Reader
+	stdin      io.Reader
+	configPath string
 }
 
 func NewConfigureCommand(stdin io.Reader) *ConfigureCommand {
@@ -23,40 +24,48 @@ func NewConfigureCommand(stdin io.Reader) *ConfigureCommand {
 	return &ConfigureCommand{stdin: stdin}
 }
 
-func (c *ConfigureCommand) Name() string        { return "configure" }
-func (c *ConfigureCommand) Aliases() []string  { return []string{"configuration", "config"} }
-func (c *ConfigureCommand) Description() string { return "대화형으로 Jira 접속 정보(.jira.json)를 설정합니다." }
-
-type configData struct {
-	InstanceURL string `json:"instance_url"`
-	Email       string `json:"email"`
-	APIToken    string `json:"api_token"`
-	ProjectKey  string `json:"project_key"`
+func NewConfigureCommandWithPath(stdin io.Reader, configPath string) *ConfigureCommand {
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	return &ConfigureCommand{stdin: stdin, configPath: configPath}
 }
 
+func (c *ConfigureCommand) Name() string        { return "configure" }
+func (c *ConfigureCommand) Aliases() []string  { return []string{"configuration", "config"} }
+func (c *ConfigureCommand) Description() string { return "Jira 계정 프로필(~/.config/jira/config)을 대화형으로 설정합니다." }
+
 func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	isGlobal := false
-	for _, arg := range args {
-		if arg == "--global" || arg == "-g" {
-			isGlobal = true
-			break
-		}
-	}
-
-	targetPath := ".jira.json"
-	if isGlobal {
-		home, err := os.UserHomeDir()
+	targetPath := c.configPath
+	if targetPath == "" {
+		p, err := pkg.GetDefaultConfigPath()
 		if err != nil {
-			return fmt.Errorf("홈 디렉토리를 찾을 수 없습니다: %w", err)
+			return err
 		}
-		targetPath = filepath.Join(home, ".config", "jira", "config.json")
+		targetPath = p
 	}
 
-	// Read existing configuration if available
-	var existing configData
-	if data, err := os.ReadFile(targetPath); err == nil {
-		_ = json.Unmarshal(data, &existing)
+	profile := pkg.GetActiveProfile()
+	// Parse args for subcommands or flags
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "list" || arg == "ls" {
+			return c.listProfiles(targetPath, stdout)
+		}
+		if arg == "--profile" && i+1 < len(args) {
+			profile = args[i+1]
+			i++
+		} else if strings.HasPrefix(arg, "--profile=") {
+			profile = strings.TrimPrefix(arg, "--profile=")
+		}
 	}
+
+	if profile == "" {
+		profile = "default"
+	}
+
+	// Read existing profile config if available
+	existing, _, _ := pkg.ReadProfileConfig(targetPath, profile)
 
 	reader := bufio.NewReader(c.stdin)
 
@@ -91,7 +100,8 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 	}
 
 	fmt.Fprintln(stdout, "🔧 Jira CLI 환경 설정 마법사")
-	fmt.Fprintf(stdout, "설정 파일 대상: %s\n\n", targetPath)
+	fmt.Fprintf(stdout, "설정 파일 대상: %s\n", targetPath)
+	fmt.Fprintf(stdout, "대상 프로필:   [%s]\n\n", profile)
 
 	defaultURL := existing.InstanceURL
 	if defaultURL == "" {
@@ -121,28 +131,50 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 		return err
 	}
 
-	cfg := configData{
+	cfg := pkg.Config{
 		InstanceURL: strings.TrimRight(instanceURL, "/"),
 		Email:       email,
 		APIToken:    apiToken,
 		ProjectKey:  projectKey,
 	}
 
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return fmt.Errorf("JSON 인코딩 실패: %w", err)
-	}
-	data = append(data, '\n')
-
-	// Ensure parent dir exists for global config
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil && filepath.Dir(targetPath) != "." {
-		return fmt.Errorf("디렉토리 생성 실패: %w", err)
-	}
-
-	if err := os.WriteFile(targetPath, data, 0600); err != nil {
+	if err := pkg.WriteProfileConfig(targetPath, profile, cfg); err != nil {
 		return fmt.Errorf("설정 파일 저장 실패 (%s): %w", targetPath, err)
 	}
 
-	fmt.Fprintf(stdout, "\n✅ Jira 설정이 성공적으로 저장되었습니다: %s\n", targetPath)
+	fmt.Fprintf(stdout, "\n✅ Jira 설정이 성공적으로 저장되었습니다: %s (프로필: [%s])\n", targetPath, profile)
+	return nil
+}
+
+func (c *ConfigureCommand) listProfiles(configPath string, stdout io.Writer) error {
+	profiles, err := pkg.ListProfiles(configPath)
+	if err != nil {
+		return fmt.Errorf("프로필 목록 조회 실패 (%s): %w", configPath, err)
+	}
+
+	if len(profiles) == 0 {
+		fmt.Fprintf(stdout, "등록된 Jira 프로필이 없습니다 (%s).\n'jira configure' 명령어로 프로필을 생성하세요.\n", configPath)
+		return nil
+	}
+
+	active := pkg.GetActiveProfile()
+	fmt.Fprintf(stdout, "설정 파일: %s\n\n", configPath)
+	fmt.Fprintln(stdout, "등록된 프로필 목록:")
+	for _, p := range profiles {
+		cfg, _, _ := pkg.ReadProfileConfig(configPath, p)
+		marker := "  "
+		if strings.EqualFold(p, active) {
+			marker = "* "
+		}
+		summary := ""
+		if cfg.InstanceURL != "" || cfg.Email != "" {
+			summary = fmt.Sprintf(" (%s, %s)", cfg.InstanceURL, cfg.Email)
+		}
+		if marker == "* " {
+			fmt.Fprintf(stdout, "%s[%s]%s [현재 활성]\n", marker, p, summary)
+		} else {
+			fmt.Fprintf(stdout, "%s[%s]%s\n", marker, p, summary)
+		}
+	}
 	return nil
 }

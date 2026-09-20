@@ -26,6 +26,10 @@ coverage.html
 # Go dependency cache (if vendoring)
 # vendor/
 
+# Temporary & scratch files
+tmp/
+.obsidian/
+
 # IDE & Editor files
 .idea/
 .vscode/

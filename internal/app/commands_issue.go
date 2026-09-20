@@ -23,15 +23,66 @@ func (c *ListCommand) Name() string        { return "list" }
 func (c *ListCommand) Aliases() []string  { return []string{"ls"} }
 func (c *ListCommand) Description() string { return "Jira 이슈 목록을 조회합니다." }
 
+// parseOutputFormat extracts output format (--json, --md, -o, --output) from args.
+// Supported formats: "table" (default), "json", "md" (or "markdown").
+func parseOutputFormat(args []string) (string, []string, error) {
+	var cleanArgs []string
+	format := "table"
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--json" {
+			format = "json"
+			continue
+		}
+		if arg == "--md" || arg == "--markdown" {
+			format = "md"
+			continue
+		}
+		if arg == "-o" || arg == "--output" {
+			if i+1 < len(args) {
+				format = strings.ToLower(args[i+1])
+				i++
+				continue
+			}
+			return "", nil, fmt.Errorf("-o / --output 플래그에 포맷(table, json, md)을 지정하세요")
+		}
+		if strings.HasPrefix(arg, "-o=") {
+			format = strings.ToLower(strings.TrimPrefix(arg, "-o="))
+			continue
+		}
+		if strings.HasPrefix(arg, "--output=") {
+			format = strings.ToLower(strings.TrimPrefix(arg, "--output="))
+			continue
+		}
+		cleanArgs = append(cleanArgs, arg)
+	}
+
+	if format == "markdown" {
+		format = "md"
+	}
+
+	if format != "table" && format != "json" && format != "md" {
+		return "", nil, fmt.Errorf("지원하지 않는 출력 포맷: '%s' (지원 포맷: table, json, md)", format)
+	}
+
+	return format, cleanArgs, nil
+}
+
 func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	format, cleanArgs, err := parseOutputFormat(args)
+	if err != nil {
+		return err
+	}
+
 	client, err := c.clientProvider()
 	if err != nil {
 		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
 	}
 
 	jql := ""
-	if len(args) > 0 {
-		jql = strings.Join(args, " ")
+	if len(cleanArgs) > 0 {
+		jql = strings.Join(cleanArgs, " ")
 	}
 
 	issues, err := client.ListIssues(ctx, jql)
@@ -39,8 +90,16 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		return fmt.Errorf("이슈 목록 조회 실패: %w", err)
 	}
 
-	pkg.PrintIssuesTable(stdout, issues)
-	return nil
+	switch format {
+	case "json":
+		return pkg.PrintIssuesJSON(stdout, issues)
+	case "md":
+		pkg.PrintIssuesMarkdown(stdout, issues)
+		return nil
+	default:
+		pkg.PrintIssuesTable(stdout, issues)
+		return nil
+	}
 }
 
 // GetCommand displays detail and comments for a single issue.
@@ -57,11 +116,16 @@ func (c *GetCommand) Aliases() []string  { return []string{"view", "show"} }
 func (c *GetCommand) Description() string { return "특정 이슈의 상세 정보를 조회합니다." }
 
 func (c *GetCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	if len(args) < 1 {
-		return fmt.Errorf("사용법: jira get <KEY> (예: jira get KAN-1)")
+	format, cleanArgs, err := parseOutputFormat(args)
+	if err != nil {
+		return err
 	}
 
-	key := strings.ToUpper(args[0])
+	if len(cleanArgs) < 1 {
+		return fmt.Errorf("사용법: jira get <KEY> [-o table|json|md] [--json] [--md] (예: jira get KAN-1 --md)")
+	}
+
+	key := strings.ToUpper(cleanArgs[0])
 	client, err := c.clientProvider()
 	if err != nil {
 		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
@@ -72,8 +136,16 @@ func (c *GetCommand) Execute(ctx context.Context, args []string, stdout, stderr 
 		return fmt.Errorf("이슈(%s) 조회 실패: %w", key, err)
 	}
 
-	pkg.PrintIssueDetail(stdout, issue)
-	return nil
+	switch format {
+	case "json":
+		return pkg.PrintIssueJSON(stdout, issue)
+	case "md":
+		pkg.PrintIssueMarkdown(stdout, issue)
+		return nil
+	default:
+		pkg.PrintIssueDetail(stdout, issue)
+		return nil
+	}
 }
 
 // CreateCommand creates a new Jira issue.

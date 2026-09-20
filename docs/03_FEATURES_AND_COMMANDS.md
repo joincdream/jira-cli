@@ -156,3 +156,19 @@
 ### 9. `labels` (표준 라벨 카탈로그 조회)
 - **문법**: `jira labels`
 - **출력 내용**: `project`, `tech`, `activity` 카테고리별 표준 라벨명과 설명을 터미널에 구조화하여 출력.
+
+---
+
+### 10. `configure` (대화형 프로필 설정 및 조회)
+- **문법**:
+  - `jira configure [--profile <name>]` : 지정 프로필(기본: `default`) 대화형 설정
+  - `jira configure list` : 등록된 프로필 목록 및 현재 활성 프로필 조회
+- **파일 위치**: `~/.config/jira/config` (INI 포맷, 권한 `0600`)
+- **전역 플래그**: `--profile <name>` 또는 `JIRA_PROFILE` 환경 변수를 모든 명령어와 조합하여 멀티 계정 전환 가능.
+- **예시**:
+  ```bash
+  jira configure
+  jira configure --profile cloit
+  jira configure list
+  jira --profile cloit list
+  ```

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -47,27 +47,20 @@ func TestApp_Run_Help(t *testing.T) {
 
 func TestConfigureCommand(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalWd, _ := os.Getwd()
-	_ = os.Chdir(tmpDir)
-	defer func() { _ = os.Chdir(originalWd) }()
+	configPath := filepath.Join(tmpDir, "config")
 
 	input := "https://custom.atlassian.net\ntestuser@example.com\nsecret_token_abc\nMYPROJ\n"
-	cmd := NewConfigureCommand(strings.NewReader(input))
+	cmd := NewConfigureCommandWithPath(strings.NewReader(input), configPath)
 
 	var stdout, stderr bytes.Buffer
-	err := cmd.Execute(context.Background(), []string{}, &stdout, &stderr)
+	err := cmd.Execute(context.Background(), []string{"--profile", "myprofile"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("expected configure to succeed, got error: %v", err)
 	}
 
-	savedData, err := os.ReadFile(".jira.json")
-	if err != nil {
-		t.Fatalf("failed to read created .jira.json: %v", err)
-	}
-
-	var saved configData
-	if err := json.Unmarshal(savedData, &saved); err != nil {
-		t.Fatalf("failed to parse created .jira.json: %v", err)
+	saved, found, err := pkg.ReadProfileConfig(configPath, "myprofile")
+	if err != nil || !found {
+		t.Fatalf("failed to read profile 'myprofile': %v, found: %v", err, found)
 	}
 
 	if saved.InstanceURL != "https://custom.atlassian.net" {
@@ -81,6 +74,56 @@ func TestConfigureCommand(t *testing.T) {
 	}
 	if saved.ProjectKey != "MYPROJ" {
 		t.Errorf("expected ProjectKey MYPROJ, got %q", saved.ProjectKey)
+	}
+
+	t.Run("configure list", func(t *testing.T) {
+		var listOut, listErr bytes.Buffer
+		err := cmd.Execute(context.Background(), []string{"list"}, &listOut, &listErr)
+		if err != nil {
+			t.Fatalf("configure list failed: %v", err)
+		}
+		if !strings.Contains(listOut.String(), "[myprofile]") {
+			t.Errorf("expected profile [myprofile] in list, got: %s", listOut.String())
+		}
+	})
+}
+
+func TestApp_ExtractProfileFlag(t *testing.T) {
+	tests := []struct {
+		args        []string
+		wantProfile string
+		wantClean   []string
+	}{
+		{
+			args:        []string{"list"},
+			wantProfile: "",
+			wantClean:   []string{"list"},
+		},
+		{
+			args:        []string{"--profile", "work", "list"},
+			wantProfile: "work",
+			wantClean:   []string{"list"},
+		},
+		{
+			args:        []string{"list", "--profile", "cloit"},
+			wantProfile: "cloit",
+			wantClean:   []string{"list"},
+		},
+		{
+			args:        []string{"--profile=personal", "get", "KAN-1"},
+			wantProfile: "personal",
+			wantClean:   []string{"get", "KAN-1"},
+		},
+	}
+
+	for _, tt := range tests {
+		profile, clean := extractProfileFlag(tt.args)
+		if profile != tt.wantProfile {
+			t.Errorf("extractProfileFlag(%v) profile = %q, want %q", tt.args, profile, tt.wantProfile)
+		}
+		if len(clean) != len(tt.wantClean) {
+			t.Errorf("extractProfileFlag(%v) clean len = %d, want %d", tt.args, len(clean), len(tt.wantClean))
+		}
 	}
 }
 
@@ -340,10 +383,34 @@ func TestApp_Run_E2E_CommandsWithMockServer(t *testing.T) {
 			wantStdout: "KAN-1",
 		},
 		{
+			name:       "list command with --json",
+			args:       []string{"list", "--json"},
+			wantExit:   0,
+			wantStdout: `"key": "KAN-1"`,
+		},
+		{
+			name:       "list command with --md",
+			args:       []string{"list", "--md"},
+			wantExit:   0,
+			wantStdout: "| Key | Type | Status |",
+		},
+		{
 			name:       "get command",
 			args:       []string{"get", "KAN-1"},
 			wantExit:   0,
 			wantStdout: "Sample task",
+		},
+		{
+			name:       "get command with --json",
+			args:       []string{"get", "KAN-1", "--json"},
+			wantExit:   0,
+			wantStdout: `"key": "KAN-1"`,
+		},
+		{
+			name:       "get command with --md",
+			args:       []string{"get", "KAN-1", "--md"},
+			wantExit:   0,
+			wantStdout: "# [KAN-1] Sample task",
 		},
 		{
 			name:       "create command with standard label",

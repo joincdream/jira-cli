@@ -1,60 +1,71 @@
 # ⚙️ 02. 설정 및 인증 아키텍처 (Configuration & Authentication)
 
-이 문서는 Jira CLI의 계층적 설정 로딩 메커니즘, 인증 토큰 보안 관리, 대화형 설정 마법사의 동작 방식을 다룹니다.
+이 문서는 Jira CLI의 INI 기반 멀티 프로필 설정 체계(`~/.config/jira/config`), 인증 토큰 보안 관리, 프로필 결정 우선순위 및 대화형 설정 마법사의 동작 방식을 다룹니다.
 
 ---
 
-## 🎯 1. 설정 우선순위 (Hierarchical Priority)
+## 🎯 1. 프로필 결정 우선순위 (Profile Resolution Priority)
 
-Jira CLI는 다양한 환경(로컬 개발, 모노레포, 멀티 프로젝트, CI/CD, 전역 CLI)에서 자연스럽게 동작할 수 있도록 **4단계 우선순위**로 접속 정보를 탐색합니다.
+Jira CLI는 AWS CLI와 유사한 프로필 방식을 채택하여, 단일 설정 파일(`~/.config/jira/config`) 안에서 여러 Jira 계정/조직(예: 회사, 개인, 외주 등)을 손쉽게 전환할 수 있습니다.
 
 ```mermaid
 flowchart TD
-    Start([설정값 요청]) --> EnvCheck{"1. OS 환경 변수에 존재하는가?"}
-    EnvCheck -->|Yes| UseEnv[OS 환경 변수 적용]
-    EnvCheck -->|No| LocalCheck{"2. 상위 탐색 로컬 .jira.json에 존재하는가?"}
+    Start([Jira 명령어 실행]) --> ProfileCheck{"1. CLI에 --profile 플래그가 지정되었는가?"}
+    ProfileCheck -->|Yes| UseFlagProfile[지정된 프로필 사용]
+    ProfileCheck -->|No| EnvProfileCheck{"2. JIRA_PROFILE 환경 변수가 존재하는가?"}
     
-    LocalCheck -->|Yes| UseLocal[로컬 프로젝트 설정 적용]
-    LocalCheck -->|No| GlobalCheck{"3. 전역 ~/.config/jira/config.json에 존재하는가?"}
+    EnvProfileCheck -->|Yes| UseEnvProfile[환경 변수 지정 프로필 사용]
+    EnvProfileCheck -->|No| UseDefaultProfile[기본 'default' 프로필 사용]
     
-    GlobalCheck -->|Yes| UseGlobal[전역 사용자 설정 적용]
-    GlobalCheck -->|No| DotEnvCheck{"4. 로컬 .env 파일에 존재하는가?"}
+    UseFlagProfile --> LoadFile[~/.config/jira/config 로드]
+    UseEnvProfile --> LoadFile
+    UseDefaultProfile --> LoadFile
     
-    DotEnvCheck -->|Yes| UseDotEnv[로컬 .env fallback 적용]
-    DotEnvCheck -->|No| Error["오류: 인증 정보 누락 (Run 'jira configure')"]
+    LoadFile --> EnvOverrideCheck{"3. OS 환경 변수(JIRA_*)가 존재하는가?"}
+    EnvOverrideCheck -->|Yes| ApplyOverride[해당 필드 환경 변수로 오버라이드]
+    EnvOverrideCheck -->|No| Ready([Jira Client 준비 완료])
+    ApplyOverride --> Ready
 ```
 
 ### 상세 우선순위 목록
 
-1. **OS 환경 변수 (최우선)**
-   - `JIRA_INSTANCE_URL`: Jira Cloud 인스턴스 도메인 (예: `https://your-domain.atlassian.net`)
-   - `JIRA_EMAIL`: Atlassian 계정 이메일 (예: `developer@example.com`)
-   - `JIRA_API_TOKEN`: Atlassian 계정 API 토큰
-   - `JIRA_PROJECT_KEY`: 기본 대상 프로젝트 키 (지정하지 않을 경우 기본값: `KAN`)
-2. **로컬 프로젝트 설정 파일 (상위 디렉토리 순회 탐색)**
-   - 현재 작업 디렉토리(`cwd`)부터 루트 디렉토리(`/`)까지 상위로 올라가며 다음 파일들을 순서대로 탐색합니다:
-     - `.jira.json`
-     - `.jira/config.json`
-     - `.agents/jira.json`
-3. **글로벌 사용자 설정 파일 (머신 전역)**
-   - `~/.config/jira/config.json`
-   - `~/.jira/config.json`
-4. **로컬 `.env` 파일 (Fallback)**
-   - 현재 디렉토리부터 상위로 올라가며 `.env` 파일 내 `JIRA_*` 키-값 쌍을 읽어옵니다.
+1. **활성 프로필 결정**:
+   - 1순위: CLI 플래그 (`--profile <name>` 또는 `--profile=<name>`)
+   - 2순위: 세션 환경 변수 (`JIRA_PROFILE`)
+   - 3순위: 기본값 (`default`)
+2. **설정 파일 탐색**:
+   - 오직 `~/.config/jira/config` (권한 `0600`) 단일 경로에서 해당 프로필 섹션(`[<profile>]`)을 로드합니다.
+   - 프로젝트 디렉토리 순회 탐색을 제거하여 저장소별 민감 정보 유출을 원천 방지합니다.
+3. **환경 변수 개별 필드 오버라이드 (CI/CD Fallback)**:
+   - `JIRA_INSTANCE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY` 환경 변수가 설정되어 있으면 해당 필드를 최종 오버라이드합니다.
 
 ---
 
-## 📄 2. 설정 파일 스키마 (`.jira.json` / `config.json`)
+## 📄 2. 설정 파일 스키마 (`~/.config/jira/config`)
 
-설정 파일은 표준 JSON 포맷입니다:
+설정 파일은 표준 INI 포맷입니다:
 
-```json
-{
-  "instance_url": "https://joincdream.atlassian.net",
-  "email": "developer@example.com",
-  "api_token": "ATATT3xFfGF0...YOUR_API_TOKEN...",
-  "project_key": "KAN"
-}
+```ini
+# Jira CLI Multi-Profile Configuration
+# 위치: ~/.config/jira/config (권한: 0600)
+
+[default]
+instance_url = https://joincdream.atlassian.net
+email = joinc.dream@gmail.com
+api_token = ATATT3xFfGF0...YOUR_API_TOKEN...
+project_key = KAN
+
+[cloit]
+instance_url = https://cloit-team.atlassian.net
+email = user@cloit.com
+api_token = ATATT3xFfGF0...ANOTHER_TOKEN...
+project_key = CLOIT
+
+[personal]
+instance_url = https://personal.atlassian.net
+email = me@gmail.com
+api_token = ATATT3xFfGF0...PERSONAL_TOKEN...
+project_key = MYPROJ
 ```
 
 ### 필드 명세
@@ -71,31 +82,36 @@ flowchart TD
 ## 🔒 3. 보안 정책 및 파일 권한
 
 1. **엄격한 파일 권한 (0600)**:
-   - `jira configure` 명령어를 통해 생성되는 파일은 오직 소유자만 읽고 쓸 수 있도록 `0600` (`-rw-------`) 권한으로 기록됩니다.
+   - `~/.config/jira/config` 파일은 오직 사용자 본인만 읽고 쓸 수 있도록 `0600` (`-rw-------`) 권한으로 기록됩니다.
 2. **비밀번호/토큰 마스킹 (Secret Masking)**:
    - 대화형 마법사 실행 시 기존 설정에 API 토큰이 존재할 경우, 화면에 노출되지 않고 앞 4자리와 뒤 4자리만 마스킹(`ATAT...8x9F` 또는 `********`)하여 출력됩니다.
-3. **Git 저장소 제외 원칙**:
-   - `.jira.json` 및 `.env` 파일은 인증 토큰을 포함하므로 반드시 `.gitignore`에 등록되어 원격 저장소에 커밋되지 않아야 합니다.
-   - 팀 공유용 템플릿은 `.jira.json.example` 파일로 제공합니다.
+3. **중앙 집중형 관리 원칙 (Git 누출 차단)**:
+   - 모든 인증 정보를 사용자 홈(`~/.config/jira/config`)에서만 관리하므로 코드 저장소에 토큰 파일이 포함되는 실수를 원천 방지합니다.
 
 ---
 
-## 🧙 4. 대화형 설정 마법사 (`jira configure`)
-
-사용자나 에이전트가 손쉽게 접속 정보를 세팅할 수 있도록 대화형 프롬프트를 제공합니다.
+## 🧙 4. 대화형 설정 마법사 및 프로필 관리 (`jira configure`)
 
 ### 실행 방법
 
 ```bash
-# 1. 현재 로컬 디렉토리에 .jira.json 생성
+# 1. 기본 프로필(default) 대화형 설정
 jira configure
 
-# 2. 전역(~/.config/jira/config.json)에 생성하여 머신 전체에서 사용
-jira configure --global
-# 별칭: jira configuration, jira config
+# 2. 특정 프로필 생성 또는 수정
+jira configure --profile cloit
+
+# 3. 등록된 프로필 목록 및 현재 활성 프로필 확인
+jira configure list
 ```
 
-### 마법사 내부 로직 (`internal/app/commands_config.go`)
-- 기존 설정 파일이 존재할 경우 기존 입력값을 프롬프트의 기본값(`[기본값]`)으로 표시합니다.
-- 사용자가 값을 입력하지 않고 `Enter`를 누르면 기존 값이 그대로 유지됩니다.
-- 전역 설정 시 `~/.config/jira/` 디렉토리가 존재하지 않으면 `os.MkdirAll(..., 0755)`을 통해 자동으로 디렉토리를 생성합니다.
+### 실행 예시 (`jira configure list`)
+
+```text
+설정 파일: /home/yundream/.config/jira/config
+
+등록된 프로필 목록:
+* [default] (https://joincdream.atlassian.net, joinc.dream@gmail.com) [현재 활성]
+  [cloit] (https://cloit-team.atlassian.net, user@cloit.com)
+  [personal] (https://personal.atlassian.net, me@gmail.com)
+```

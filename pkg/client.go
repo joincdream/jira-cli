@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -29,73 +30,45 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// jiraConfigFile represents the structure of .jira.json or config.json.
-type jiraConfigFile struct {
-	InstanceURL string `json:"instance_url"`
-	Email       string `json:"email"`
-	APIToken    string `json:"api_token"`
-	ProjectKey  string `json:"project_key"`
+var (
+	activeProfileLock sync.RWMutex
+	activeProfile     string
+)
+
+// SetActiveProfile sets the active profile name for configuration loading.
+func SetActiveProfile(name string) {
+	activeProfileLock.Lock()
+	defer activeProfileLock.Unlock()
+	activeProfile = strings.TrimSpace(name)
 }
 
-// LoadConfig reads configuration in priority:
-// 1. OS environment variables
-// 2. Local project config file (.jira.json, .jira/config.json, .agents/jira.json)
-// 3. Global user config file (~/.config/jira/config.json, ~/.jira/config.json)
-// 4. Local .env file (fallback)
-func LoadConfig() (Config, error) {
-	localCfg := loadLocalConfigFile()
-	globalCfg := loadGlobalConfigFile()
-	dotEnvMap := loadDotEnv()
-
-	getVal := func(envKey, localVal, globalVal string) string {
-		if val := os.Getenv(envKey); val != "" {
-			return val
-		}
-		if localVal != "" {
-			return localVal
-		}
-		if globalVal != "" {
-			return globalVal
-		}
-		return dotEnvMap[envKey]
-	}
-
-	cfg := Config{
-		InstanceURL: strings.TrimRight(getVal("JIRA_INSTANCE_URL", localCfg.InstanceURL, globalCfg.InstanceURL), "/"),
-		Email:       getVal("JIRA_EMAIL", localCfg.Email, globalCfg.Email),
-		APIToken:    getVal("JIRA_API_TOKEN", localCfg.APIToken, globalCfg.APIToken),
-		ProjectKey:  getVal("JIRA_PROJECT_KEY", localCfg.ProjectKey, globalCfg.ProjectKey),
-	}
-
-	if cfg.ProjectKey == "" {
-		cfg.ProjectKey = "KAN"
-	}
-
-	if cfg.InstanceURL == "" || cfg.Email == "" || cfg.APIToken == "" {
-		return cfg, fmt.Errorf("missing Jira credentials. Please run 'jira configuration' to configure your credentials in .jira.json")
-	}
-
-	return cfg, nil
-}
-
-// loadLocalConfigFile traverses up from current working directory to find local Jira config files.
-func loadLocalConfigFile() jiraConfigFile {
+// FindLocalProfile searches for a local profile configuration file (.jira-profile, .jira/profile)
+// starting from the current working directory upwards.
+func FindLocalProfile() string {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return jiraConfigFile{}
+		return ""
 	}
 
 	curr := cwd
 	for {
 		candidates := []string{
-			filepath.Join(curr, ".jira.json"),
-			filepath.Join(curr, ".jira", "config.json"),
-			filepath.Join(curr, ".agents", "jira.json"),
+			filepath.Join(curr, ".jira-profile"),
+			filepath.Join(curr, ".jira", "profile"),
 		}
 
 		for _, p := range candidates {
-			if cfg, ok := readJiraConfigFile(p); ok {
-				return cfg
+			if info, err := os.Stat(p); err == nil && !info.IsDir() {
+				data, err := os.ReadFile(p)
+				if err == nil {
+					line := strings.TrimSpace(string(data))
+					for _, l := range strings.Split(line, "\n") {
+						trimmed := strings.TrimSpace(l)
+						if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+							return trimmed
+						}
+					}
+				}
 			}
 		}
 
@@ -106,44 +79,259 @@ func loadLocalConfigFile() jiraConfigFile {
 		curr = parent
 	}
 
-	return jiraConfigFile{}
+	return ""
 }
 
-// loadGlobalConfigFile loads configuration from ~/.config/jira/config.json or ~/.jira/config.json.
-func loadGlobalConfigFile() jiraConfigFile {
+// GetActiveProfile returns the active profile name.
+// Resolution order:
+// 1. Explicitly set active profile (via CLI flag --profile)
+// 2. JIRA_PROFILE environment variable
+// 3. Local project profile file (.jira-profile or .jira/profile)
+// 4. Default "default"
+func GetActiveProfile() string {
+	activeProfileLock.RLock()
+	cur := activeProfile
+	activeProfileLock.RUnlock()
+
+	if cur != "" {
+		return cur
+	}
+	if env := os.Getenv("JIRA_PROFILE"); env != "" {
+		return strings.TrimSpace(env)
+	}
+	if local := FindLocalProfile(); local != "" {
+		return local
+	}
+	return "default"
+}
+
+// GetDefaultConfigPath returns the canonical path ~/.config/jira/config.
+func GetDefaultConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return jiraConfigFile{}
+		return "", fmt.Errorf("홈 디렉토리를 찾을 수 없습니다: %w", err)
 	}
+	return filepath.Join(home, ".config", "jira", "config"), nil
+}
 
-	candidates := []string{
-		filepath.Join(home, ".config", "jira", "config.json"),
-		filepath.Join(home, ".jira", "config.json"),
+// ReadProfileConfig reads a specific profile's configuration from an INI file.
+// Returns (Config, found, error).
+func ReadProfileConfig(configPath, profile string) (Config, bool, error) {
+	file, err := os.Open(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Config{}, false, nil
+		}
+		return Config{}, false, err
 	}
+	defer file.Close()
 
-	for _, p := range candidates {
-		if cfg, ok := readJiraConfigFile(p); ok {
-			return cfg
+	targetHeader := strings.ToLower(strings.TrimSpace(profile))
+	currentSection := ""
+	var cfg Config
+	found := false
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			currentSection = strings.ToLower(strings.TrimSpace(line[1 : len(line)-1]))
+			if currentSection == targetHeader {
+				found = true
+			}
+			continue
+		}
+
+		if currentSection == targetHeader {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				key := strings.ToLower(strings.TrimSpace(parts[0]))
+				val := strings.Trim(strings.TrimSpace(parts[1]), "\"'")
+				switch key {
+				case "instance_url":
+					cfg.InstanceURL = val
+				case "email":
+					cfg.Email = val
+				case "api_token":
+					cfg.APIToken = val
+				case "project_key":
+					cfg.ProjectKey = val
+				}
+			}
 		}
 	}
 
-	return jiraConfigFile{}
+	if err := scanner.Err(); err != nil {
+		return Config{}, false, err
+	}
+
+	return cfg, found, nil
 }
 
-// readJiraConfigFile attempts to read and unmarshal a JSON file into jiraConfigFile.
-func readJiraConfigFile(path string) (jiraConfigFile, bool) {
-	data, err := os.ReadFile(path)
+// ListProfiles returns all profile names defined in the INI file.
+func ListProfiles(configPath string) ([]string, error) {
+	file, err := os.Open(configPath)
 	if err != nil {
-		return jiraConfigFile{}, false
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
 	}
-	var cfg jiraConfigFile
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return jiraConfigFile{}, false
+	defer file.Close()
+
+	var profiles []string
+	seen := make(map[string]bool)
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			name := strings.TrimSpace(line[1 : len(line)-1])
+			if name != "" && !seen[strings.ToLower(name)] {
+				profiles = append(profiles, name)
+				seen[strings.ToLower(name)] = true
+			}
+		}
 	}
-	return cfg, true
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return profiles, nil
 }
 
-// NewClient initializes a Client using configuration loaded from environment/.env.
+// WriteProfileConfig creates or updates a profile section in an INI file.
+// Other sections, comments, and structure are preserved.
+func WriteProfileConfig(configPath, profile string, cfg Config) error {
+	dir := filepath.Dir(configPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("디렉토리 생성 실패 (%s): %w", dir, err)
+	}
+
+	newSection := formatProfileSection(profile, cfg)
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return os.WriteFile(configPath, []byte(newSection+"\n"), 0600)
+		}
+		return err
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	targetHeader := "[" + strings.ToLower(strings.TrimSpace(profile)) + "]"
+	startIdx := -1
+	endIdx := -1
+
+	for i, line := range lines {
+		trimmed := strings.ToLower(strings.TrimSpace(line))
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			if trimmed == targetHeader {
+				startIdx = i
+			} else if startIdx != -1 {
+				endIdx = i
+				break
+			}
+		}
+	}
+
+	var resultLines []string
+	if startIdx != -1 {
+		if endIdx == -1 {
+			endIdx = len(lines)
+		}
+		resultLines = append(resultLines, lines[:startIdx]...)
+		resultLines = append(resultLines, newSection)
+		resultLines = append(resultLines, lines[endIdx:]...)
+	} else {
+		trimmedContent := strings.TrimRight(content, "\r\n")
+		if trimmedContent != "" {
+			resultLines = append(resultLines, trimmedContent, "", newSection)
+		} else {
+			resultLines = append(resultLines, newSection)
+		}
+	}
+
+	output := strings.Join(resultLines, "\n")
+	output = strings.TrimRight(output, "\r\n") + "\n"
+	return os.WriteFile(configPath, []byte(output), 0600)
+}
+
+func formatProfileSection(profile string, cfg Config) string {
+	projectKey := cfg.ProjectKey
+	if projectKey == "" {
+		projectKey = "KAN"
+	}
+	return fmt.Sprintf("[%s]\ninstance_url = %s\nemail = %s\napi_token = %s\nproject_key = %s",
+		strings.TrimSpace(profile),
+		strings.TrimRight(cfg.InstanceURL, "/"),
+		cfg.Email,
+		cfg.APIToken,
+		projectKey,
+	)
+}
+
+// LoadConfig reads configuration for the active profile from ~/.config/jira/config.
+func LoadConfig() (Config, error) {
+	return LoadConfigForProfile(GetActiveProfile())
+}
+
+// LoadConfigForProfile loads configuration for a specified profile.
+func LoadConfigForProfile(profile string) (Config, error) {
+	configPath, err := GetDefaultConfigPath()
+	if err != nil {
+		return Config{}, err
+	}
+	return LoadConfigFileForProfile(configPath, profile)
+}
+
+// LoadConfigFileForProfile loads configuration for a specified profile from a specific file path.
+func LoadConfigFileForProfile(configPath, profile string) (Config, error) {
+	cfg, found, err := ReadProfileConfig(configPath, profile)
+	if err != nil {
+		return Config{}, fmt.Errorf("설정 파일 읽기 실패 (%s): %w", configPath, err)
+	}
+
+	// Environment variable overrides
+	if envVal := os.Getenv("JIRA_INSTANCE_URL"); envVal != "" {
+		cfg.InstanceURL = envVal
+	}
+	if envVal := os.Getenv("JIRA_EMAIL"); envVal != "" {
+		cfg.Email = envVal
+	}
+	if envVal := os.Getenv("JIRA_API_TOKEN"); envVal != "" {
+		cfg.APIToken = envVal
+	}
+	if envVal := os.Getenv("JIRA_PROJECT_KEY"); envVal != "" {
+		cfg.ProjectKey = envVal
+	}
+
+	cfg.InstanceURL = strings.TrimRight(cfg.InstanceURL, "/")
+	if cfg.ProjectKey == "" {
+		cfg.ProjectKey = "KAN"
+	}
+
+	hasEnvCredentials := os.Getenv("JIRA_INSTANCE_URL") != "" && os.Getenv("JIRA_EMAIL") != "" && os.Getenv("JIRA_API_TOKEN") != ""
+
+	if !found && !hasEnvCredentials {
+		return cfg, fmt.Errorf("Jira 프로필 [%s]을(를) 찾을 수 없습니다 (%s).\n'jira configure --profile %s' 명령어로 프로필을 설정하세요.", profile, configPath, profile)
+	}
+
+	if cfg.InstanceURL == "" || cfg.Email == "" || cfg.APIToken == "" {
+		return cfg, fmt.Errorf("Jira 인증 정보가 누락되었습니다 (프로필: [%s], 파일: %s).\n'jira configure --profile %s' 명령어로 설정하세요.", profile, configPath, profile)
+	}
+
+	return cfg, nil
+}
+
+// NewClient initializes a Client using configuration loaded from ~/.config/jira/config.
 func NewClient() (*Client, error) {
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -165,55 +353,6 @@ func NewClientWithConfig(cfg Config) *Client {
 // GetConfig returns the client's configuration.
 func (c *Client) GetConfig() Config {
 	return c.cfg
-}
-
-// loadDotEnv walks up the directory tree to find and parse .env files.
-func loadDotEnv() map[string]string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return map[string]string{}
-	}
-
-	curr := cwd
-	for {
-		envPath := filepath.Join(curr, ".env")
-		if info, err := os.Stat(envPath); err == nil && !info.IsDir() {
-			return parseEnvFileToMap(envPath)
-		}
-		parent := filepath.Dir(curr)
-		if parent == curr {
-			break
-		}
-		curr = parent
-	}
-	return map[string]string{}
-}
-
-// parseEnvFileToMap parses key-value pairs from .env file into a map.
-func parseEnvFileToMap(filename string) map[string]string {
-	res := make(map[string]string)
-	file, err := os.Open(filename)
-	if err != nil {
-		return res
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			val := strings.Trim(strings.TrimSpace(parts[1]), "\"'")
-			if key != "" {
-				res[key] = val
-			}
-		}
-	}
-	return res
 }
 
 // formatJiraAPIError parses and formats Jira REST API errors.

@@ -11,73 +11,232 @@ import (
 	"testing"
 )
 
-func TestParseEnvFile(t *testing.T) {
+func TestReadProfileConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	envPath := filepath.Join(tmpDir, ".env")
+	configPath := filepath.Join(tmpDir, "config")
 
 	content := `
-# Sample comment
-JIRA_INSTANCE_URL="https://test.atlassian.net"
-JIRA_EMAIL='test@example.com'
-JIRA_API_TOKEN=secret_token_123
-JIRA_PROJECT_KEY=TEST
+# Sample Jira Configuration
+[default]
+instance_url = https://default.atlassian.net
+email = default@example.com
+api_token = token_default_123
+project_key = DEF
 
-# Invalid line
-INVALID_LINE_WITHOUT_EQUALS
-EMPTY_VAL=
+; Secondary profile
+[work]
+instance_url = "https://work.atlassian.net"
+email = 'work@example.com'
+api_token = token_work_456
+project_key = WORK
 `
-	if err := os.WriteFile(envPath, []byte(content), 0600); err != nil {
-		t.Fatalf("failed to write test .env file: %v", err)
+	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write test config file: %v", err)
 	}
 
-	envMap := parseEnvFileToMap(envPath)
+	t.Run("read default profile", func(t *testing.T) {
+		cfg, found, err := ReadProfileConfig(configPath, "default")
+		if err != nil {
+			t.Fatalf("ReadProfileConfig failed: %v", err)
+		}
+		if !found {
+			t.Fatal("expected profile 'default' to be found")
+		}
+		if cfg.InstanceURL != "https://default.atlassian.net" {
+			t.Errorf("expected URL https://default.atlassian.net, got %q", cfg.InstanceURL)
+		}
+		if cfg.Email != "default@example.com" {
+			t.Errorf("expected email default@example.com, got %q", cfg.Email)
+		}
+		if cfg.APIToken != "token_default_123" {
+			t.Errorf("expected token token_default_123, got %q", cfg.APIToken)
+		}
+		if cfg.ProjectKey != "DEF" {
+			t.Errorf("expected project DEF, got %q", cfg.ProjectKey)
+		}
+	})
 
-	if envMap["JIRA_INSTANCE_URL"] != "https://test.atlassian.net" {
-		t.Errorf("expected URL https://test.atlassian.net, got %q", envMap["JIRA_INSTANCE_URL"])
+	t.Run("read work profile case-insensitively", func(t *testing.T) {
+		cfg, found, err := ReadProfileConfig(configPath, "WORK")
+		if err != nil {
+			t.Fatalf("ReadProfileConfig failed: %v", err)
+		}
+		if !found {
+			t.Fatal("expected profile 'WORK' to be found")
+		}
+		if cfg.InstanceURL != "https://work.atlassian.net" {
+			t.Errorf("expected URL https://work.atlassian.net, got %q", cfg.InstanceURL)
+		}
+		if cfg.Email != "work@example.com" {
+			t.Errorf("expected email work@example.com, got %q", cfg.Email)
+		}
+		if cfg.APIToken != "token_work_456" {
+			t.Errorf("expected token token_work_456, got %q", cfg.APIToken)
+		}
+		if cfg.ProjectKey != "WORK" {
+			t.Errorf("expected project WORK, got %q", cfg.ProjectKey)
+		}
+	})
+
+	t.Run("profile not found", func(t *testing.T) {
+		_, found, err := ReadProfileConfig(configPath, "nonexistent")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if found {
+			t.Fatal("expected profile to not be found")
+		}
+	})
+}
+
+func TestFindLocalProfile(t *testing.T) {
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get wd: %v", err)
 	}
-	if envMap["JIRA_EMAIL"] != "test@example.com" {
-		t.Errorf("expected email test@example.com, got %q", envMap["JIRA_EMAIL"])
+	defer os.Chdir(origDir)
+
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "src", "app")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to mkdir: %v", err)
 	}
-	if envMap["JIRA_API_TOKEN"] != "secret_token_123" {
-		t.Errorf("expected token secret_token_123, got %q", envMap["JIRA_API_TOKEN"])
+
+	// Create .jira-profile in root
+	profileFile := filepath.Join(tmpDir, ".jira-profile")
+	if err := os.WriteFile(profileFile, []byte("# comment\nmy-project-profile\n"), 0644); err != nil {
+		t.Fatalf("failed to write .jira-profile: %v", err)
 	}
-	if envMap["JIRA_PROJECT_KEY"] != "TEST" {
-		t.Errorf("expected key TEST, got %q", envMap["JIRA_PROJECT_KEY"])
+
+	if err := os.Chdir(subDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+
+	found := FindLocalProfile()
+	if found != "my-project-profile" {
+		t.Errorf("expected 'my-project-profile', got %q", found)
+	}
+
+	// Test GetActiveProfile resolution: local profile takes precedence over default
+	os.Unsetenv("JIRA_PROFILE")
+	SetActiveProfile("") // reset
+	if prof := GetActiveProfile(); prof != "my-project-profile" {
+		t.Errorf("expected GetActiveProfile() to return 'my-project-profile', got %q", prof)
+	}
+
+	// Environment variable takes precedence over local profile
+	t.Setenv("JIRA_PROFILE", "env-profile")
+	if prof := GetActiveProfile(); prof != "env-profile" {
+		t.Errorf("expected GetActiveProfile() to return 'env-profile', got %q", prof)
+	}
+
+	// Explicitly set active profile takes top precedence
+	SetActiveProfile("flag-profile")
+	if prof := GetActiveProfile(); prof != "flag-profile" {
+		t.Errorf("expected GetActiveProfile() to return 'flag-profile', got %q", prof)
+	}
+	SetActiveProfile("") // reset
+}
+
+
+func TestWriteProfileConfig_And_ListProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config")
+
+	// 1. Write initial default profile
+	err := WriteProfileConfig(configPath, "default", Config{
+		InstanceURL: "https://default.atlassian.net",
+		Email:       "default@example.com",
+		APIToken:    "token1",
+		ProjectKey:  "DEF",
+	})
+	if err != nil {
+		t.Fatalf("failed to write default profile: %v", err)
+	}
+
+	// 2. Add second profile
+	err = WriteProfileConfig(configPath, "cloit", Config{
+		InstanceURL: "https://cloit.atlassian.net",
+		Email:       "cloit@example.com",
+		APIToken:    "token2",
+		ProjectKey:  "CLOIT",
+	})
+	if err != nil {
+		t.Fatalf("failed to write cloit profile: %v", err)
+	}
+
+	// Verify ListProfiles
+	profiles, err := ListProfiles(configPath)
+	if err != nil {
+		t.Fatalf("ListProfiles failed: %v", err)
+	}
+	if len(profiles) != 2 || profiles[0] != "default" || profiles[1] != "cloit" {
+		t.Errorf("unexpected profiles: %v", profiles)
+	}
+
+	// 3. Update default profile
+	err = WriteProfileConfig(configPath, "default", Config{
+		InstanceURL: "https://new-default.atlassian.net",
+		Email:       "new@example.com",
+		APIToken:    "token_new",
+		ProjectKey:  "NEWDEF",
+	})
+	if err != nil {
+		t.Fatalf("failed to update default profile: %v", err)
+	}
+
+	// Check updated default
+	cfgDef, found, err := ReadProfileConfig(configPath, "default")
+	if err != nil || !found {
+		t.Fatalf("failed to read default: %v, found: %v", err, found)
+	}
+	if cfgDef.InstanceURL != "https://new-default.atlassian.net" {
+		t.Errorf("expected updated URL, got %s", cfgDef.InstanceURL)
+	}
+
+	// Check cloit is still preserved
+	cfgCloit, found, err := ReadProfileConfig(configPath, "cloit")
+	if err != nil || !found {
+		t.Fatalf("failed to read cloit: %v, found: %v", err, found)
+	}
+	if cfgCloit.InstanceURL != "https://cloit.atlassian.net" {
+		t.Errorf("expected cloit URL to be preserved, got %s", cfgCloit.InstanceURL)
 	}
 }
 
-func TestReadJiraConfigFile(t *testing.T) {
+func TestLoadConfigFileForProfile(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, ".jira.json")
+	configPath := filepath.Join(tmpDir, "config")
 
-	content := `{
-		"instance_url": "https://local.atlassian.net",
-		"email": "local@example.com",
-		"api_token": "local_token_123",
-		"project_key": "LOCALPROJ"
-	}`
-
-	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
-		t.Fatalf("failed to write test .jira.json file: %v", err)
-	}
-
-	cfg, ok := readJiraConfigFile(configPath)
-	if !ok {
-		t.Fatal("expected readJiraConfigFile to succeed, got false")
+	err := WriteProfileConfig(configPath, "default", Config{
+		InstanceURL: "https://myjira.atlassian.net",
+		Email:       "my@example.com",
+		APIToken:    "my_token",
+		ProjectKey:  "PROJ",
+	})
+	if err != nil {
+		t.Fatalf("WriteProfileConfig failed: %v", err)
 	}
 
-	if cfg.InstanceURL != "https://local.atlassian.net" {
-		t.Errorf("expected InstanceURL https://local.atlassian.net, got %q", cfg.InstanceURL)
-	}
-	if cfg.Email != "local@example.com" {
-		t.Errorf("expected Email local@example.com, got %q", cfg.Email)
-	}
-	if cfg.APIToken != "local_token_123" {
-		t.Errorf("expected APIToken local_token_123, got %q", cfg.APIToken)
-	}
-	if cfg.ProjectKey != "LOCALPROJ" {
-		t.Errorf("expected ProjectKey LOCALPROJ, got %q", cfg.ProjectKey)
-	}
+	t.Run("load valid profile", func(t *testing.T) {
+		cfg, err := LoadConfigFileForProfile(configPath, "default")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.InstanceURL != "https://myjira.atlassian.net" {
+			t.Errorf("expected instance URL https://myjira.atlassian.net, got %s", cfg.InstanceURL)
+		}
+	})
+
+	t.Run("load missing profile", func(t *testing.T) {
+		_, err := LoadConfigFileForProfile(configPath, "unknown")
+		if err == nil {
+			t.Fatal("expected error for unknown profile, got nil")
+		}
+		if !strings.Contains(err.Error(), "Jira 프로필 [unknown]을(를) 찾을 수 없습니다") {
+			t.Errorf("unexpected error message: %v", err)
+		}
+	})
 }
 
 func TestFormatJiraAPIError(t *testing.T) {
