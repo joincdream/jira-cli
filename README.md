@@ -194,10 +194,20 @@ go test -v ./...
 
 ---
 
-## 📚 상세 설계 및 개발 문서 (`docs/`)
+## 📚 지식 베이스 및 개발 문서 (Knowledge & Docs)
 
-프로젝트의 상세한 아키텍처, ADF 변환 알고리즘, 라벨 카탈로그 규격, 확장 가이드는 `docs/` 디렉토리를 참조하세요. 향후 LLM이 개발 문맥을 확인하고 유지보수할 때 이 문서들을 기준으로 코드를 작성합니다.
+### 🧠 Google OKF (Open Knowledge Format) 지식 베이스 (`knowledge/`)
+생성형 AI(LLM)와 개발자가 코드베이스를 원활히 유지보수하고 기능을 확장할 수 있도록 Google Open Knowledge Format 규격의 정형화된 지식 베이스를 제공합니다:
+- [knowledge/index.md](knowledge/index.md) - 전체 지식 카탈로그 및 AI 라우팅 인덱스
+- [knowledge/architecture.md](knowledge/architecture.md) - 3-Tier 시스템 아키텍처 및 의존성 주입 설계
+- [knowledge/configuration.md](knowledge/configuration.md) - INI 멀티 프로필 및 `.jira-profile` 자동 탐색
+- [knowledge/commands-and-routing.md](knowledge/commands-and-routing.md) - CLI 명령어 및 머신 리더블(`--md`, `--json`) 포맷 엔진
+- [knowledge/adf-engine.md](knowledge/adf-engine.md) - Markdown ↔ ADF 변환 엔진
+- [knowledge/data-models.md](knowledge/data-models.md) - Jira REST API v3 DTO 매핑
+- [knowledge/labels-catalog.md](knowledge/labels-catalog.md) - 표준 라벨 검증 및 정규화 정책
+- [knowledge/log.md](knowledge/log.md) - 지식 베이스 변경 및 검증 이력
 
+### 📄 상세 설계 문서 (`docs/`)
 - [01. 시스템 아키텍처 및 설계 원칙](docs/01_ARCHITECTURE.md)
 - [02. 설정 및 인증 아키텍처](docs/02_CONFIGURATION.md)
 - [03. 기능 명세 및 CLI 레퍼런스](docs/03_FEATURES_AND_COMMANDS.md)
