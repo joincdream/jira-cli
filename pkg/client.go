@@ -22,6 +22,7 @@ type Config struct {
 	Email       string
 	APIToken    string
 	ProjectKey  string
+	Language    string
 }
 
 // Client is a Jira API client.
@@ -160,6 +161,8 @@ func ReadProfileConfig(configPath, profile string) (Config, bool, error) {
 					cfg.APIToken = val
 				case "project_key":
 					cfg.ProjectKey = val
+				case "language", "lang":
+					cfg.Language = val
 				}
 			}
 		}
@@ -269,13 +272,17 @@ func formatProfileSection(profile string, cfg Config) string {
 	if projectKey == "" {
 		projectKey = "KAN"
 	}
-	return fmt.Sprintf("[%s]\ninstance_url = %s\nemail = %s\napi_token = %s\nproject_key = %s",
+	res := fmt.Sprintf("[%s]\ninstance_url = %s\nemail = %s\napi_token = %s\nproject_key = %s",
 		strings.TrimSpace(profile),
 		strings.TrimRight(cfg.InstanceURL, "/"),
 		cfg.Email,
 		cfg.APIToken,
 		projectKey,
 	)
+	if cfg.Language != "" {
+		res += fmt.Sprintf("\nlanguage = %s", cfg.Language)
+	}
+	return res
 }
 
 // LoadConfig reads configuration for the active profile from ~/.config/jira/config.

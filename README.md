@@ -214,6 +214,7 @@ go test -v ./...
 - [04. ADF (Atlassian Document Format) 변환 엔진](docs/04_ADF_ENGINE.md)
 - [05. 라벨 정책 및 카탈로그 시스템](docs/05_LABELS_MANAGEMENT.md)
 - [06. 개발 및 확장 가이드 (LLM & Developer Guide)](docs/06_EXTENDING_GUIDE.md)
+- [07. 오픈소스 배포 검토 및 전략 보고서 (OSS Strategy & Review)](docs/07_OPENSOURCE_STRATEGY.md)
 
 ---
 

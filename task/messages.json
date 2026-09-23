@@ -1,0 +1,1277 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "description": "Jira CLI user-facing message catalog for i18n localization (ko/en)",
+  "messages": [
+    {
+      "key": "app.err_unknown_command",
+      "type": "error",
+      "source_file": "internal/app/app.go",
+      "line": 195,
+      "ko": "알 수 없는 명령어: %s\n",
+      "en": "Unknown command: %s\n",
+      "params": ["command"],
+      "context": "Displayed when an unrecognized command is entered in CLI"
+    },
+    {
+      "key": "cmd.help.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_meta.go",
+      "line": 22,
+      "ko": "CLI 도움말 및 사용법을 출력합니다.",
+      "en": "Show CLI help and usage information.",
+      "params": [],
+      "context": "Help command description in command list"
+    },
+    {
+      "key": "cmd.version.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_meta.go",
+      "line": 40,
+      "ko": "CLI 버전을 출력합니다.",
+      "en": "Print CLI version.",
+      "params": [],
+      "context": "Version command description in command list"
+    },
+    {
+      "key": "cmd.version.output",
+      "type": "info",
+      "source_file": "internal/app/commands_meta.go",
+      "line": 43,
+      "ko": "jira version %s\n",
+      "en": "jira version %s\n",
+      "params": ["version"],
+      "context": "Standard version command output"
+    },
+    {
+      "key": "cmd.labels.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_meta.go",
+      "line": 58,
+      "ko": "표준 라벨 카탈로그를 조회합니다.",
+      "en": "View standard labels catalog and usage guide.",
+      "params": [],
+      "context": "Labels command description in command list"
+    },
+    {
+      "key": "cmd.labels.err_load",
+      "type": "error",
+      "source_file": "internal/app/commands_meta.go",
+      "line": 63,
+      "ko": "라벨 카탈로그 로드 실패: %w",
+      "en": "Failed to load label catalog: %w",
+      "params": ["error"],
+      "context": "Returned when loading labels.json fails"
+    },
+    {
+      "key": "cmd.configure.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_config.go",
+      "line": 36,
+      "ko": "Jira 계정 프로필(~/.config/jira/config)을 대화형으로 설정합니다.",
+      "en": "Configure Jira account profiles (~/.config/jira/config) interactively.",
+      "params": [],
+      "context": "Configure command description in command list"
+    },
+    {
+      "key": "cmd.configure.wizard_title",
+      "type": "info",
+      "source_file": "internal/app/commands_config.go",
+      "line": 102,
+      "ko": "🔧 Jira CLI 환경 설정 마법사",
+      "en": "🔧 Jira CLI Configuration Wizard",
+      "params": [],
+      "context": "Header displayed when running interactive configure wizard"
+    },
+    {
+      "key": "cmd.configure.target_file",
+      "type": "info",
+      "source_file": "internal/app/commands_config.go",
+      "line": 103,
+      "ko": "설정 파일 대상: %s\n",
+      "en": "Target config file: %s\n",
+      "params": ["path"],
+      "context": "Config file path in configure wizard"
+    },
+    {
+      "key": "cmd.configure.target_profile",
+      "type": "info",
+      "source_file": "internal/app/commands_config.go",
+      "line": 104,
+      "ko": "대상 프로필:   [%s]\n\n",
+      "en": "Target profile:     [%s]\n\n",
+      "params": ["profile"],
+      "context": "Profile name in configure wizard"
+    },
+    {
+      "key": "cmd.configure.prompt_instance_url",
+      "type": "prompt",
+      "source_file": "internal/app/commands_config.go",
+      "line": 110,
+      "ko": "Jira Instance URL",
+      "en": "Jira Instance URL",
+      "params": [],
+      "context": "Interactive prompt for Jira instance URL"
+    },
+    {
+      "key": "cmd.configure.prompt_email",
+      "type": "prompt",
+      "source_file": "internal/app/commands_config.go",
+      "line": 115,
+      "ko": "Jira Account Email",
+      "en": "Jira Account Email",
+      "params": [],
+      "context": "Interactive prompt for Jira account email"
+    },
+    {
+      "key": "cmd.configure.prompt_api_token",
+      "type": "prompt",
+      "source_file": "internal/app/commands_config.go",
+      "line": 120,
+      "ko": "Jira API Token",
+      "en": "Jira API Token",
+      "params": [],
+      "context": "Interactive prompt for Jira API token"
+    },
+    {
+      "key": "cmd.configure.prompt_project_key",
+      "type": "prompt",
+      "source_file": "internal/app/commands_config.go",
+      "line": 129,
+      "ko": "Default Project Key",
+      "en": "Default Project Key",
+      "params": [],
+      "context": "Interactive prompt for default project key"
+    },
+    {
+      "key": "cmd.configure.err_save",
+      "type": "error",
+      "source_file": "internal/app/commands_config.go",
+      "line": 142,
+      "ko": "설정 파일 저장 실패 (%s): %w",
+      "en": "Failed to save configuration file (%s): %w",
+      "params": ["path", "error"],
+      "context": "Returned when writing configuration fails"
+    },
+    {
+      "key": "cmd.configure.save_success",
+      "type": "info",
+      "source_file": "internal/app/commands_config.go",
+      "line": 145,
+      "ko": "\n✅ Jira 설정이 성공적으로 저장되었습니다: %s (프로필: [%s])\n",
+      "en": "\n✅ Jira configuration saved successfully: %s (profile: [%s])\n",
+      "params": ["path", "profile"],
+      "context": "Displayed upon successful configuration save"
+    },
+    {
+      "key": "cmd.configure.err_list_profiles",
+      "type": "error",
+      "source_file": "internal/app/commands_config.go",
+      "line": 152,
+      "ko": "프로필 목록 조회 실패 (%s): %w",
+      "en": "Failed to list profiles (%s): %w",
+      "params": ["path", "error"],
+      "context": "Returned when listing profiles fails"
+    },
+    {
+      "key": "cmd.configure.no_profiles",
+      "type": "info",
+      "source_file": "internal/app/commands_config.go",
+      "line": 156,
+      "ko": "등록된 Jira 프로필이 없습니다 (%s).\n'jira configure' 명령어로 프로필을 생성하세요.\n",
+      "en": "No Jira profiles configured (%s).\nRun 'jira configure' to create a profile.\n",
+      "params": ["path"],
+      "context": "Displayed when configure list finds zero profiles"
+    },
+    {
+      "key": "cmd.configure.list_header",
+      "type": "info",
+      "source_file": "internal/app/commands_config.go",
+      "line": 161,
+      "ko": "설정 파일: %s\n\n등록된 프로필 목록:",
+      "en": "Config file: %s\n\nConfigured profiles:",
+      "params": ["path"],
+      "context": "Header for profile listing"
+    },
+    {
+      "key": "cmd.configure.active_profile_marker",
+      "type": "info",
+      "source_file": "internal/app/commands_config.go",
+      "line": 174,
+      "ko": "[현재 활성]",
+      "en": "[active]",
+      "params": [],
+      "context": "Badge attached to the currently active profile in list"
+    },
+    {
+      "key": "cmd.common.err_client_init",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 88,
+      "ko": "Jira 클라이언트 초기화 오류: %w",
+      "en": "Failed to initialize Jira client: %w",
+      "params": ["error"],
+      "context": "Returned when client connection or credentials fail to initialize"
+    },
+    {
+      "key": "cmd.common.err_output_flag_missing_format",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 50,
+      "ko": "-o / --output 플래그에 포맷(table, json, md)을 지정하세요",
+      "en": "-o / --output flag requires a format specification (table, json, md)",
+      "params": [],
+      "context": "Returned when -o or --output is specified without format argument"
+    },
+    {
+      "key": "cmd.common.err_unsupported_output_format",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 68,
+      "ko": "지원하지 않는 출력 포맷: '%s' (지원 포맷: table, json, md)",
+      "en": "Unsupported output format: '%s' (supported formats: table, json, md)",
+      "params": ["format"],
+      "context": "Returned when an invalid format is passed to -o or --output"
+    },
+    {
+      "key": "cmd.list.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 26,
+      "ko": "Jira 이슈 목록을 조회합니다.",
+      "en": "List Jira issues matching JQL query.",
+      "params": [],
+      "context": "List command description in command list"
+    },
+    {
+      "key": "cmd.list.usage",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 76,
+      "ko": "사용법: jira list [JQL] [-o table|json|md] [--json] [--md]\nJira 이슈 목록을 조회합니다. (예: jira list 'status = \"진행 중\"' --md)",
+      "en": "Usage: jira list [JQL] [-o table|json|md] [--json] [--md]\nList Jira issues. (e.g. jira list 'status = \"In Progress\"' --md)",
+      "params": [],
+      "context": "List command help text"
+    },
+    {
+      "key": "cmd.list.err_fetch",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 98,
+      "ko": "이슈 목록 조회 실패: %w",
+      "en": "Failed to fetch issues: %w",
+      "params": ["error"],
+      "context": "Returned when issue listing API fails"
+    },
+    {
+      "key": "cmd.get.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 124,
+      "ko": "특정 이슈의 상세 정보를 조회합니다.",
+      "en": "Get detailed information, description, subtasks, and comments of an issue.",
+      "params": [],
+      "context": "Get command description in command list"
+    },
+    {
+      "key": "cmd.get.usage",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 128,
+      "ko": "사용법: jira get <KEY> [-o table|json|md] [--json] [--md]\n특정 Jira 이슈의 상세 정보를 조회합니다. (예: jira get KAN-1 --md)",
+      "en": "Usage: jira get <KEY> [-o table|json|md] [--json] [--md]\nGet details of a Jira issue. (e.g. jira get KAN-1 --md)",
+      "params": [],
+      "context": "Get command help text"
+    },
+    {
+      "key": "cmd.get.err_missing_key",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 139,
+      "ko": "사용법: jira get <KEY> [-o table|json|md] [--json] [--md] (예: jira get KAN-1 --md)",
+      "en": "Usage: jira get <KEY> [-o table|json|md] [--json] [--md] (e.g. jira get KAN-1 --md)",
+      "params": [],
+      "context": "Returned when issue key argument is missing"
+    },
+    {
+      "key": "cmd.get.err_fetch",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 150,
+      "ko": "이슈(%s) 조회 실패: %w",
+      "en": "Failed to get issue (%s): %w",
+      "params": ["key", "error"],
+      "context": "Returned when issue lookup API fails"
+    },
+    {
+      "key": "cmd.create.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 177,
+      "ko": "신규 이슈를 생성합니다.",
+      "en": "Create a new Jira issue.",
+      "params": [],
+      "context": "Create command description in command list"
+    },
+    {
+      "key": "cmd.create.flag_desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 186,
+      "ko": "이슈 상세 설명",
+      "en": "Issue description (Markdown formatted, converted to ADF)",
+      "params": [],
+      "context": "Flag description for -d / --desc"
+    },
+    {
+      "key": "cmd.create.flag_type",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 189,
+      "ko": "이슈 유형 (작업/스토리/에픽/Subtask)",
+      "en": "Issue type (Task/Story/Epic/Subtask/Bug)",
+      "params": [],
+      "context": "Flag description for -t / --type"
+    },
+    {
+      "key": "cmd.create.flag_labels",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 191,
+      "ko": "라벨 목록 (쉼표 구분)",
+      "en": "Labels list (comma-separated, e.g. 'AI,Development')",
+      "params": [],
+      "context": "Flag description for -l / --labels"
+    },
+    {
+      "key": "cmd.create.flag_due",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 193,
+      "ko": "마감일 (YYYY-MM-DD)",
+      "en": "Due date (YYYY-MM-DD format)",
+      "params": [],
+      "context": "Flag description for --due"
+    },
+    {
+      "key": "cmd.create.flag_project",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 194,
+      "ko": "프로젝트 키",
+      "en": "Project key (defaults to config project_key)",
+      "params": [],
+      "context": "Flag description for -p / --project"
+    },
+    {
+      "key": "cmd.create.flag_parent",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 196,
+      "ko": "상위 이슈 키 (Subtask인 경우)",
+      "en": "Parent issue key (required for Subtask or Epic linking)",
+      "params": [],
+      "context": "Flag description for --parent"
+    },
+    {
+      "key": "cmd.create.flag_force_labels",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 197,
+      "ko": "표준 카탈로그 외 임의 라벨 허용",
+      "en": "Allow non-standard labels outside the catalog",
+      "params": [],
+      "context": "Flag description for --force-labels"
+    },
+    {
+      "key": "cmd.create.flag_allow_empty_desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 198,
+      "ko": "본문 설명 없이 티켓 생성 허용",
+      "en": "Allow creating issue without description body",
+      "params": [],
+      "context": "Flag description for --allow-empty-desc"
+    },
+    {
+      "key": "cmd.create.usage",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 201,
+      "ko": "사용법: jira create <SUMMARY> -d <DESCRIPTION> [options]\n신규 Jira 이슈를 생성합니다.\n\n옵션:",
+      "en": "Usage: jira create <SUMMARY> -d <DESCRIPTION> [options]\nCreate a new Jira issue.\n\nOptions:",
+      "params": [],
+      "context": "Create command full usage banner"
+    },
+    {
+      "key": "cmd.create.err_summary_required",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 221,
+      "ko": "이슈 제목(Summary)을 입력해야 합니다. (사용법: jira create <SUMMARY> -d <DESC> [options])",
+      "en": "Issue summary is required. (Usage: jira create <SUMMARY> -d <DESC> [options])",
+      "params": [],
+      "context": "Returned when summary positional argument is missing"
+    },
+    {
+      "key": "cmd.create.err_summary_min_length",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 227,
+      "ko": "이슈 제목은 공백 제외 최소 5자 이상이어야 합니다. (입력값: '%s')",
+      "en": "Issue summary must be at least 5 characters excluding whitespace. (Given: '%s')",
+      "params": ["summary"],
+      "context": "Returned when summary is under 5 characters"
+    },
+    {
+      "key": "cmd.create.err_summary_flag_prefix",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 230,
+      "ko": "이슈 제목이 플래그 형식('-')으로 시작할 수 없습니다: '%s'\n문자 그대로 전달하려면 '--' 구분자 뒤에 입력하세요. (예: jira create -- '-d 버그 수정' -d '내용')",
+      "en": "Issue summary cannot start with flag prefix ('-'): '%s'\nTo pass it as a literal, place it after '--' delimiter. (e.g. jira create -- '-d Fix bug' -d 'details')",
+      "params": ["summary"],
+      "context": "Returned when summary starts with dash without double-dash delimiter"
+    },
+    {
+      "key": "cmd.create.err_desc_required",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 234,
+      "ko": "상세 설명(-d, --desc)이 입력되지 않았습니다.\n💡 팀 협업 및 명확한 작업 추적을 위해 본문 설명은 필수입니다.\n   (설명 없이 간이 티켓을 생성하려면 '--allow-empty-desc' 플래그를 사용하세요)",
+      "en": "Description (-d, --desc) is required.\n💡 Detailed description is required for team collaboration and clear task tracking.\n   (To create a stub ticket without description, use '--allow-empty-desc')",
+      "params": [],
+      "context": "Guardrail error when description is missing and --allow-empty-desc is not set"
+    },
+    {
+      "key": "cmd.create.err_invalid_due_date",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 239,
+      "ko": "마감일(--due) 형식이 올바르지 않습니다: '%s' (올바른 형식: YYYY-MM-DD)",
+      "en": "Invalid due date format (--due): '%s' (expected format: YYYY-MM-DD)",
+      "params": ["dueDate"],
+      "context": "Returned when --due format is not YYYY-MM-DD"
+    },
+    {
+      "key": "cmd.create.err_label_validation",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 261,
+      "ko": "❌ 라벨 유효성 오류: %v\n   정의되지 않은 라벨: %s\n\n💡 표준 라벨 목록은 'jira labels' 명령어로 확인하세요.\n   (표준 외 라벨을 강제 등록하려면 --force-labels 옵션을 추가하세요)",
+      "en": "❌ Label validation error: %v\n   Undefined labels: %s\n\n💡 View standard labels catalog using 'jira labels'.\n   (To allow non-standard labels, pass --force-labels)",
+      "params": ["error", "invalidLabels"],
+      "context": "Returned when non-standard labels are used without --force-labels"
+    },
+    {
+      "key": "cmd.create.err_api_create",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 278,
+      "ko": "이슈 생성 실패: %w",
+      "en": "Failed to create issue: %w",
+      "params": ["error"],
+      "context": "Returned when Jira REST API issue creation fails"
+    },
+    {
+      "key": "cmd.create.success",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 281,
+      "ko": "✅ Jira 이슈 생성 완료! [Key: %s] (%s/browse/%s)\n",
+      "en": "✅ Jira issue created successfully! [Key: %s] (%s/browse/%s)\n",
+      "params": ["key", "instanceUrl", "key"],
+      "context": "Displayed upon successful issue creation"
+    },
+    {
+      "key": "cmd.create.applied_labels",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 283,
+      "ko": "   🏷️ 적용된 표준 라벨: %s\n",
+      "en": "   🏷️ Applied standard labels: %s\n",
+      "params": ["labels"],
+      "context": "Displayed after issue creation when labels are applied"
+    },
+    {
+      "key": "cmd.edit.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 301,
+      "ko": "기존 이슈 정보를 수정합니다.",
+      "en": "Update fields of an existing Jira issue.",
+      "params": [],
+      "context": "Edit command description in command list"
+    },
+    {
+      "key": "cmd.edit.flag_due",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 311,
+      "ko": "마감일 (YYYY-MM-DD 또는 none)",
+      "en": "Due date (YYYY-MM-DD or 'none' to clear)",
+      "params": [],
+      "context": "Flag description for edit --due"
+    },
+    {
+      "key": "cmd.edit.flag_parent",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 312,
+      "ko": "상위 이슈/에픽 키 (또는 none)",
+      "en": "Parent issue / epic key (or 'none' to detach)",
+      "params": [],
+      "context": "Flag description for edit --parent"
+    },
+    {
+      "key": "cmd.edit.flag_summary",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 313,
+      "ko": "이슈 요약/제목",
+      "en": "Issue summary/title",
+      "params": [],
+      "context": "Flag description for edit -s / --summary"
+    },
+    {
+      "key": "cmd.edit.usage",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 321,
+      "ko": "사용법: jira edit <KEY> [options]\n기존 Jira 이슈 정보를 수정합니다.\n\n옵션:",
+      "en": "Usage: jira edit <KEY> [options]\nUpdate an existing Jira issue.\n\nOptions:",
+      "params": [],
+      "context": "Edit command full usage banner"
+    },
+    {
+      "key": "cmd.edit.err_missing_key",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 341,
+      "ko": "사용법: jira edit <KEY> [-l <LABELS>] [--due <YYYY-MM-DD>] [--parent <PARENT_KEY>] [-s <SUMMARY>] [-d <DESC>] [--force-labels]",
+      "en": "Usage: jira edit <KEY> [-l <LABELS>] [--due <YYYY-MM-DD>] [--parent <PARENT_KEY>] [-s <SUMMARY>] [-d <DESC>] [--force-labels]",
+      "params": [],
+      "context": "Returned when edit target key is missing"
+    },
+    {
+      "key": "cmd.edit.err_no_fields_to_update",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 359,
+      "ko": "수정할 항목을 하나 이상 지정하세요. (예: jira edit KAN-9 --due 2026-09-01 -l 'FDE,AI' --parent KAN-17)",
+      "en": "Specify at least one field to update. (e.g. jira edit KAN-9 --due 2026-09-01 -l 'FDE,AI' --parent KAN-17)",
+      "params": [],
+      "context": "Returned when no update flags are passed to edit"
+    },
+    {
+      "key": "cmd.edit.item_labels_cleared",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 394,
+      "ko": "라벨: (제거)",
+      "en": "Labels: (cleared)",
+      "params": [],
+      "context": "Update summary item when labels are removed"
+    },
+    {
+      "key": "cmd.edit.item_labels_updated",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 396,
+      "ko": "라벨: [%s]",
+      "en": "Labels: [%s]",
+      "params": ["labels"],
+      "context": "Update summary item when labels are updated"
+    },
+    {
+      "key": "cmd.edit.item_due_cleared",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 404,
+      "ko": "마감일: (제거)",
+      "en": "Due date: (cleared)",
+      "params": [],
+      "context": "Update summary item when due date is removed"
+    },
+    {
+      "key": "cmd.edit.item_due_updated",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 410,
+      "ko": "마감일: %s",
+      "en": "Due date: %s",
+      "params": ["dueDate"],
+      "context": "Update summary item when due date is updated"
+    },
+    {
+      "key": "cmd.edit.item_parent_cleared",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 418,
+      "ko": "상위 이슈: (제거)",
+      "en": "Parent: (cleared)",
+      "params": [],
+      "context": "Update summary item when parent is removed"
+    },
+    {
+      "key": "cmd.edit.item_parent_updated",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 420,
+      "ko": "상위 이슈: %s",
+      "en": "Parent: %s",
+      "params": ["parentKey"],
+      "context": "Update summary item when parent is updated"
+    },
+    {
+      "key": "cmd.edit.item_summary_updated",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 426,
+      "ko": "요약: %s",
+      "en": "Summary: %s",
+      "params": ["summary"],
+      "context": "Update summary item when summary is updated"
+    },
+    {
+      "key": "cmd.edit.item_desc_updated",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 431,
+      "ko": "설명: (수정됨)",
+      "en": "Description: (updated)",
+      "params": [],
+      "context": "Update summary item when description is updated"
+    },
+    {
+      "key": "cmd.edit.err_api_update",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 440,
+      "ko": "이슈(%s) 수정 실패: %w",
+      "en": "Failed to update issue (%s): %w",
+      "params": ["key", "error"],
+      "context": "Returned when Jira REST API issue update fails"
+    },
+    {
+      "key": "cmd.edit.success",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 443,
+      "ko": "✅ [%s] 이슈가 성공적으로 업데이트되었습니다: %s\n",
+      "en": "✅ [%s] Issue updated successfully: %s\n",
+      "params": ["key", "updatedItemsSummary"],
+      "context": "Displayed upon successful issue update"
+    },
+    {
+      "key": "cmd.move.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 458,
+      "ko": "이슈의 상태를 변경(전이)합니다.",
+      "en": "Transition issue status in workflow.",
+      "params": [],
+      "context": "Move command description in command list"
+    },
+    {
+      "key": "cmd.move.usage",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 462,
+      "ko": "사용법: jira move <KEY> <STATUS>\n이슈의 상태를 변경(전이)합니다. (예: jira move KAN-1 '진행 중')",
+      "en": "Usage: jira move <KEY> <STATUS>\nTransition issue status. (e.g. jira move KAN-1 'In Progress')",
+      "params": [],
+      "context": "Move command help text"
+    },
+    {
+      "key": "cmd.move.err_missing_args",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 468,
+      "ko": "사용법: jira move <KEY> <STATUS> (예: jira move KAN-1 '진행 중')",
+      "en": "Usage: jira move <KEY> <STATUS> (e.g. jira move KAN-1 'In Progress')",
+      "params": [],
+      "context": "Returned when key or target status arguments are missing"
+    },
+    {
+      "key": "cmd.move.err_transition",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 480,
+      "ko": "상태 변경 실패: %w",
+      "en": "Failed to transition status: %w",
+      "params": ["error"],
+      "context": "Returned when Jira REST API workflow transition fails"
+    },
+    {
+      "key": "cmd.move.success",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 483,
+      "ko": "✅ [%s] 이슈 상태가 '%s'로 성공적으로 변경되었습니다.\n",
+      "en": "✅ [%s] Issue status transitioned to '%s' successfully.\n",
+      "params": ["key", "status"],
+      "context": "Displayed upon successful issue status transition"
+    },
+    {
+      "key": "cmd.comment.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 498,
+      "ko": "이슈에 코멘트를 등록합니다.",
+      "en": "Add a comment to an issue.",
+      "params": [],
+      "context": "Comment command description in command list"
+    },
+    {
+      "key": "cmd.comment.usage",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 502,
+      "ko": "사용법: jira comment <KEY> <MESSAGE>\n이슈에 코멘트를 등록합니다. (예: jira comment KAN-1 '코드 리뷰 완료')",
+      "en": "Usage: jira comment <KEY> <MESSAGE>\nAdd a comment to an issue. (e.g. jira comment KAN-1 'Code review completed')",
+      "params": [],
+      "context": "Comment command help text"
+    },
+    {
+      "key": "cmd.comment.err_missing_args",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 508,
+      "ko": "사용법: jira comment <KEY> <MESSAGE> (예: jira comment KAN-1 '코드 리뷰 완료')",
+      "en": "Usage: jira comment <KEY> <MESSAGE> (e.g. jira comment KAN-1 'Code review completed')",
+      "params": [],
+      "context": "Returned when key or comment message arguments are missing"
+    },
+    {
+      "key": "cmd.comment.err_api_comment",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 520,
+      "ko": "코멘트 등록 실패: %w",
+      "en": "Failed to add comment: %w",
+      "params": ["error"],
+      "context": "Returned when Jira REST API comment creation fails"
+    },
+    {
+      "key": "cmd.comment.success",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 523,
+      "ko": "✅ [%s] 코멘트가 등록되었습니다.\n",
+      "en": "✅ [%s] Comment added successfully.\n",
+      "params": ["key"],
+      "context": "Displayed upon successful comment addition"
+    },
+    {
+      "key": "cmd.transitions.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 538,
+      "ko": "전환 가능한 워크플로우 상태 목록을 조회합니다.",
+      "en": "List available workflow transitions for an issue.",
+      "params": [],
+      "context": "Transitions command description in command list"
+    },
+    {
+      "key": "cmd.transitions.usage",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 542,
+      "ko": "사용법: jira transitions <KEY>\n전환 가능한 워크플로우 상태 목록을 조회합니다. (예: jira transitions KAN-1)",
+      "en": "Usage: jira transitions <KEY>\nList available workflow transitions. (e.g. jira transitions KAN-1)",
+      "params": [],
+      "context": "Transitions command help text"
+    },
+    {
+      "key": "cmd.transitions.err_missing_key",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 548,
+      "ko": "사용법: jira transitions <KEY> (예: jira transitions KAN-1)",
+      "en": "Usage: jira transitions <KEY> (e.g. jira transitions KAN-1)",
+      "params": [],
+      "context": "Returned when issue key argument is missing"
+    },
+    {
+      "key": "cmd.transitions.err_fetch",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 559,
+      "ko": "전환 가능 목록 조회 실패: %w",
+      "en": "Failed to get transitions: %w",
+      "params": ["error"],
+      "context": "Returned when fetching transitions fails"
+    },
+    {
+      "key": "cmd.transitions.header",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 562,
+      "ko": "📋 [%s] 전환 가능한 상태 목록:\n",
+      "en": "📋 [%s] Available workflow transitions:\n",
+      "params": ["key"],
+      "context": "Header for transitions list"
+    },
+    {
+      "key": "cmd.transitions.item",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 564,
+      "ko": "  • ID: %-5s ➔ 이름: %-15s (목적지: %s)\n",
+      "en": "  • ID: %-5s ➔ Name: %-15s (Target: %s)\n",
+      "params": ["id", "name", "targetStatus"],
+      "context": "Individual transition row item"
+    },
+    {
+      "key": "cmd.delete.desc",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 580,
+      "ko": "이슈를 삭제합니다.",
+      "en": "Delete an issue permanently.",
+      "params": [],
+      "context": "Delete command description in command list"
+    },
+    {
+      "key": "cmd.delete.usage",
+      "type": "help",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 584,
+      "ko": "사용법: jira delete <KEY>\nJira 이슈를 영구 삭제합니다. (예: jira delete KAN-1)",
+      "en": "Usage: jira delete <KEY>\nPermanently delete a Jira issue. (e.g. jira delete KAN-1)",
+      "params": [],
+      "context": "Delete command help text"
+    },
+    {
+      "key": "cmd.delete.err_missing_key",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 590,
+      "ko": "사용법: jira delete <KEY> (예: jira delete KAN-1)",
+      "en": "Usage: jira delete <KEY> (e.g. jira delete KAN-1)",
+      "params": [],
+      "context": "Returned when issue key argument is missing"
+    },
+    {
+      "key": "cmd.delete.err_api_delete",
+      "type": "error",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 600,
+      "ko": "이슈(%s) 삭제 실패: %w",
+      "en": "Failed to delete issue (%s): %w",
+      "params": ["key", "error"],
+      "context": "Returned when Jira REST API issue deletion fails"
+    },
+    {
+      "key": "cmd.delete.success",
+      "type": "info",
+      "source_file": "internal/app/commands_issue.go",
+      "line": 603,
+      "ko": "🗑️  [%s] 이슈가 성공적으로 삭제되었습니다.\n",
+      "en": "🗑️  [%s] Issue deleted successfully.\n",
+      "params": ["key"],
+      "context": "Displayed upon successful issue deletion"
+    },
+    {
+      "key": "fmt.table.no_issues",
+      "type": "info",
+      "source_file": "pkg/format.go",
+      "line": 14,
+      "ko": "등록된 Jira 티켓이 없습니다.",
+      "en": "No Jira issues found.",
+      "params": [],
+      "context": "Displayed in table output when search returns zero issues"
+    },
+    {
+      "key": "fmt.table.header",
+      "type": "table_header",
+      "source_file": "pkg/format.go",
+      "line": 19,
+      "ko": "KEY\tTYPE\tSTATUS\tLABELS\tASSIGNEE\tDUE DATE\tSUMMARY",
+      "en": "KEY\tTYPE\tSTATUS\tLABELS\tASSIGNEE\tDUE DATE\tSUMMARY",
+      "params": [],
+      "context": "Tabwriter column header in human table output"
+    },
+    {
+      "key": "fmt.common.unassigned",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 30,
+      "ko": "미지정",
+      "en": "Unassigned",
+      "params": [],
+      "context": "Fallback text for assignee or reporter when empty"
+    },
+    {
+      "key": "fmt.common.none",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 80,
+      "ko": "(없음)",
+      "en": "(None)",
+      "params": [],
+      "context": "Fallback text when labels or other list fields are empty"
+    },
+    {
+      "key": "fmt.detail.field_project",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 85,
+      "ko": "• 프로젝트:    %s (%s)\n",
+      "en": "• Project:     %s (%s)\n",
+      "params": ["name", "key"],
+      "context": "Project line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.field_type",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 86,
+      "ko": "• 이슈 유형:   %s\n",
+      "en": "• Issue Type:  %s\n",
+      "params": ["type"],
+      "context": "Issue type line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.field_status",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 87,
+      "ko": "• 상태:        %s\n",
+      "en": "• Status:      %s\n",
+      "params": ["status"],
+      "context": "Status line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.field_labels",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 88,
+      "ko": "• 라벨(Tags):  %s\n",
+      "en": "• Labels:      %s\n",
+      "params": ["labels"],
+      "context": "Labels line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.field_assignee",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 89,
+      "ko": "• 담당자:      %s\n",
+      "en": "• Assignee:    %s\n",
+      "params": ["assignee"],
+      "context": "Assignee line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.field_reporter",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 90,
+      "ko": "• 보고자:      %s\n",
+      "en": "• Reporter:    %s\n",
+      "params": ["reporter"],
+      "context": "Reporter line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.field_due",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 91,
+      "ko": "• 마감일:      %s\n",
+      "en": "• Due Date:    %s\n",
+      "params": ["dueDate"],
+      "context": "Due date line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.field_created",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 92,
+      "ko": "• 생성일시:    %s\n",
+      "en": "• Created:     %s\n",
+      "params": ["created"],
+      "context": "Created timestamp line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.field_updated",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 93,
+      "ko": "• 수정일시:    %s\n",
+      "en": "• Updated:     %s\n",
+      "params": ["updated"],
+      "context": "Updated timestamp line in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.header_desc",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 97,
+      "ko": "\n📄 [상세 설명 (Description)]\n",
+      "en": "\n📄 [Description]\n",
+      "params": [],
+      "context": "Description section title in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.desc_empty",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 99,
+      "ko": "  (설명이 비어 있습니다)\n",
+      "en": "  (Description is empty)\n",
+      "params": [],
+      "context": "Displayed when description is blank in human view"
+    },
+    {
+      "key": "fmt.detail.header_subtasks",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 108,
+      "ko": "\n🔹 [하위 작업 (Subtasks: %d개)]\n",
+      "en": "\n🔹 [Subtasks (%d)]\n",
+      "params": ["count"],
+      "context": "Subtasks section header in issue detail human view"
+    },
+    {
+      "key": "fmt.detail.header_comments",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 116,
+      "ko": "\n💬 [코멘트 (%d개)]\n",
+      "en": "\n💬 [Comments (%d)]\n",
+      "params": ["count"],
+      "context": "Comments section header in issue detail human view"
+    },
+    {
+      "key": "fmt.md.no_issues",
+      "type": "info",
+      "source_file": "pkg/format.go",
+      "line": 140,
+      "ko": "_등록된 Jira 티켓이 없습니다._",
+      "en": "_No Jira issues found._",
+      "params": [],
+      "context": "Displayed in markdown output when search returns zero issues"
+    },
+    {
+      "key": "fmt.md.field_project",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 205,
+      "ko": "- **프로젝트**: %s (%s)\n",
+      "en": "- **Project**: %s (%s)\n",
+      "params": ["name", "key"],
+      "context": "Project line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.field_type",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 206,
+      "ko": "- **이슈 유형**: %s\n",
+      "en": "- **Issue Type**: %s\n",
+      "params": ["type"],
+      "context": "Issue type line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.field_status",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 207,
+      "ko": "- **상태**: %s\n",
+      "en": "- **Status**: %s\n",
+      "params": ["status"],
+      "context": "Status line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.field_labels",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 208,
+      "ko": "- **라벨**: %s\n",
+      "en": "- **Labels**: %s\n",
+      "params": ["labels"],
+      "context": "Labels line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.field_assignee",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 209,
+      "ko": "- **담당자**: %s\n",
+      "en": "- **Assignee**: %s\n",
+      "params": ["assignee"],
+      "context": "Assignee line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.field_reporter",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 210,
+      "ko": "- **보고자**: %s\n",
+      "en": "- **Reporter**: %s\n",
+      "params": ["reporter"],
+      "context": "Reporter line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.field_due",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 211,
+      "ko": "- **마감일**: %s\n",
+      "en": "- **Due Date**: %s\n",
+      "params": ["dueDate"],
+      "context": "Due date line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.field_created",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 212,
+      "ko": "- **생성일시**: %s\n",
+      "en": "- **Created**: %s\n",
+      "params": ["created"],
+      "context": "Created timestamp line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.field_updated",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 213,
+      "ko": "- **수정일시**: %s\n",
+      "en": "- **Updated**: %s\n",
+      "params": ["updated"],
+      "context": "Updated timestamp line in issue markdown output"
+    },
+    {
+      "key": "fmt.md.header_desc",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 217,
+      "ko": "\n## 📄 상세 설명 (Description)\n\n",
+      "en": "\n## 📄 Description\n\n",
+      "params": [],
+      "context": "Description section title in issue markdown output"
+    },
+    {
+      "key": "fmt.md.desc_empty",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 219,
+      "ko": "_설명이 비어 있습니다._\n",
+      "en": "_Description is empty._\n",
+      "params": [],
+      "context": "Displayed when description is blank in markdown output"
+    },
+    {
+      "key": "fmt.md.header_subtasks",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 226,
+      "ko": "\n## 🔹 하위 작업 (Subtasks: %d개)\n\n",
+      "en": "\n## 🔹 Subtasks (%d)\n\n",
+      "params": ["count"],
+      "context": "Subtasks section header in issue markdown output"
+    },
+    {
+      "key": "fmt.md.header_comments",
+      "type": "label",
+      "source_file": "pkg/format.go",
+      "line": 239,
+      "ko": "\n## 💬 코멘트 (%d개)\n\n",
+      "en": "\n## 💬 Comments (%d)\n\n",
+      "params": ["count"],
+      "context": "Comments section header in issue markdown output"
+    },
+    {
+      "key": "pkg.labels.title",
+      "type": "info",
+      "source_file": "pkg/labels.go",
+      "line": 117,
+      "ko": "🏷️  Jira 표준 라벨 카탈로그 (Standard Labels Catalog)",
+      "en": "🏷️  Jira Standard Labels Catalog",
+      "params": [],
+      "context": "Title header of labels catalog view"
+    },
+    {
+      "key": "pkg.labels.hint",
+      "type": "info",
+      "source_file": "pkg/labels.go",
+      "line": 137,
+      "ko": "💡 티켓 생성 시 '-l \"<라벨1>,<라벨2>\"' 형태로 지정하세요 (예: -l \"DIVE,AI,Planning\")",
+      "en": "💡 Specify labels when creating issues using '-l \"<label1>,<label2>\"' (e.g. -l \"DIVE,AI,Planning\")",
+      "params": [],
+      "context": "Usage tip displayed at bottom of label catalog"
+    },
+    {
+      "key": "pkg.labels.desc_prefix",
+      "type": "info",
+      "source_file": "pkg/labels.go",
+      "line": 143,
+      "ko": "   설명: %s\n",
+      "en": "   Description: %s\n",
+      "params": ["desc"],
+      "context": "Category description line in label catalog"
+    },
+    {
+      "key": "pkg.labels.err_invalid_label",
+      "type": "error",
+      "source_file": "pkg/labels.go",
+      "line": 109,
+      "ko": "유효하지 않은 라벨: %s",
+      "en": "Invalid label(s): %s",
+      "params": ["invalidLabels"],
+      "context": "Validation error returned by catalog for invalid labels"
+    },
+    {
+      "key": "pkg.client.err_home_dir",
+      "type": "error",
+      "source_file": "pkg/client.go",
+      "line": 112,
+      "ko": "홈 디렉토리를 찾을 수 없습니다: %w",
+      "en": "Failed to determine home directory: %w",
+      "params": ["error"],
+      "context": "Returned when user home directory cannot be resolved"
+    },
+    {
+      "key": "pkg.client.err_mkdir",
+      "type": "error",
+      "source_file": "pkg/client.go",
+      "line": 213,
+      "ko": "디렉토리 생성 실패 (%s): %w",
+      "en": "Failed to create directory (%s): %w",
+      "params": ["dir", "error"],
+      "context": "Returned when creating config directory fails"
+    },
+    {
+      "key": "pkg.client.err_read_config",
+      "type": "error",
+      "source_file": "pkg/client.go",
+      "line": 299,
+      "ko": "설정 파일 읽기 실패 (%s): %w",
+      "en": "Failed to read configuration file (%s): %w",
+      "params": ["path", "error"],
+      "context": "Returned when reading config file fails"
+    },
+    {
+      "key": "pkg.client.err_profile_not_found",
+      "type": "error",
+      "source_file": "pkg/client.go",
+      "line": 324,
+      "ko": "Jira 프로필 [%s]을(를) 찾을 수 없습니다 (%s).\n'jira configure --profile %s' 명령어로 프로필을 설정하세요.",
+      "en": "Jira profile [%s] not found (%s).\nConfigure the profile using 'jira configure --profile %s'.",
+      "params": ["profile", "path", "profile"],
+      "context": "Returned when specified profile section is not in config file"
+    },
+    {
+      "key": "pkg.client.err_credentials_missing",
+      "type": "error",
+      "source_file": "pkg/client.go",
+      "line": 328,
+      "ko": "Jira 인증 정보가 누락되었습니다 (프로필: [%s], 파일: %s).\n'jira configure --profile %s' 명령어로 설정하세요.",
+      "en": "Jira credentials missing (profile: [%s], file: %s).\nConfigure them using 'jira configure --profile %s'.",
+      "params": ["profile", "path", "profile"],
+      "context": "Returned when required credentials fields are empty in config"
+    }
+  ]
+}

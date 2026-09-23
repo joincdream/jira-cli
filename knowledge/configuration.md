@@ -8,7 +8,7 @@ tags:
   - local-profile
   - security
 status: stable
-timestamp: 2026-09-20T18:00:00+09:00
+timestamp: 2026-09-23T11:25:00+09:00
 sources:
   - pkg/client.go
   - pkg/client_test.go
@@ -77,11 +77,12 @@ api_token = ATATT3xFfGF0...
 project_key = JC
 ```
 
-### 필수 키 정의
+### 키 정의
 - `instance_url`: Atlassian Cloud 인스턴스 전체 URL (끝의 슬래시 `/`는 자동 정규화됨)
 - `email`: 계정 이메일 주소 (Basic Auth 사용자명)
 - `api_token`: Atlassian API Token
 - `project_key`: 기본 대상 Jira 프로젝트 코드 (예: `KAN`, `JC`). 미지정 시 `"KAN"`으로 기본 설정
+- `language`: 프로필별 기본 UI 언어 (`ko` 또는 `en`). 미지정 시 시스템 OS 로케일 또는 `en`으로 폴백
 
 ---
 

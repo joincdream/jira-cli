@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"tools/jira/internal/i18n"
 	"tools/jira/pkg"
 )
 
@@ -81,9 +82,10 @@ func (a *App) registerBuiltinCommands() {
 	a.Register(NewDeleteCommand(a.clientProvider))
 }
 
-// PrintUsage outputs the usage message to the specified writer.
+// PrintUsage outputs the usage message to the specified writer based on active language.
 func (a *App) PrintUsage(w io.Writer) {
-	fmt.Fprintf(w, `Jira CLI - Personal & Team Task Management Tool (v%s)
+	if i18n.CurrentLanguage() == "ko" {
+		fmt.Fprintf(w, `Jira CLI - 개인 및 팀 업무 관리 도구 (v%s)
 
 개요 (Overview for AI Agent & Users):
   Jira CLI는 터미널 및 AI Agent 환경에서 Atlassian Jira 작업을 수행하기 위한 경량 CLI 도구입니다.
@@ -91,7 +93,7 @@ func (a *App) PrintUsage(w io.Writer) {
   그리고 머신 리더블 포맷(--json, --md)을 완벽히 지원합니다.
 
 사용법 (Usage):
-  jira [--profile <name>] <command> [arguments] [flags]
+  jira [--profile <name>] [--lang <en|ko>] <command> [arguments] [flags]
 
 명령어 목록 (Commands):
   list [JQL] [flags]             이슈 목록 조회 (기본: 최신순, 별칭: ls)
@@ -110,6 +112,7 @@ func (a *App) PrintUsage(w io.Writer) {
 
 전역 옵션 (Global Options):
   --profile string               사용할 계정 프로필 (기본: default, 환경변수: JIRA_PROFILE)
+  --lang string                  UI 언어 설정 (en, ko, 기본: en, 환경변수: JIRA_LANG)
 
 출력 포맷 플래그 (Output Flags for list, get):
   -o, --output string            출력 형식 지정 (table [기본], json, md)
@@ -125,6 +128,7 @@ func (a *App) PrintUsage(w io.Writer) {
   -p, --project string           프로젝트 키 (기본: 설정 파일의 project_key)
   --parent string                상위 이슈 키 (Subtask 생성 시 필수, 또는 에픽 연결)
   --force-labels                 표준 카탈로그 외 임의 라벨 강제 허용
+  --allow-empty-desc             본문 설명 없이 티켓 생성 허용
 
 종료 코드 (Exit Codes):
   0: 성공 (정상 수행 완료, stdout에 결과 반환)
@@ -153,12 +157,84 @@ AI Agent / SKILL 개발 가이드 (Best Practices for AI Agents):
   jira move KAN-10 "진행 중"
   jira comment KAN-10 "검토 완료했습니다."
 `, a.Version)
+		return
+	}
+
+	fmt.Fprintf(w, `Jira CLI - Personal & Team Task Management Tool (v%s)
+
+Overview (for AI Agents & Users):
+  Jira CLI is a lightweight tool for interacting with Atlassian Jira in terminal and AI Agent environments.
+  Fully supports stdout/stderr, standard exit codes (0/1), and machine-readable formats (--json, --md)
+  for seamless integration with AI Agents (LLMs) via SKILLs or automation tools.
+
+Usage:
+  jira [--profile <name>] [--lang <en|ko>] <command> [arguments] [flags]
+
+Commands:
+  list [JQL] [flags]             List Jira issues (default: newest first, alias: ls)
+  get <KEY> [flags]              View issue details, description, subtasks, and comments (alias: view, show)
+  create <SUMMARY> [flags]       Create a new issue (Task/Story/Epic/Bug/Subtask, alias: new, add)
+  edit <KEY> [flags]             Update existing issue fields (labels, due, summary, desc, parent, alias: update)
+  move <KEY> <STATUS>            Transition issue status (e.g. 'In Progress', 'Done', alias: transition, status)
+  comment <KEY> <MESSAGE>        Add a comment to an issue
+  transitions <KEY>              List available workflow transitions for an issue
+  delete <KEY>                   Delete an issue permanently (alias: rm)
+  labels                         View standard labels catalog and guide (alias: tags)
+  configure [--profile <name>]   Interactive configuration wizard (~/.config/jira/config, alias: config)
+  configure list                 List configured Jira profiles
+  version                        Display CLI version (alias: -v, --version)
+  help                           Show help and usage information (alias: -h, --help)
+
+Global Options:
+  --profile string               Account profile to use (default: default, env: JIRA_PROFILE)
+  --lang string                  Display language (en, ko, default: en, env: JIRA_LANG)
+
+Output Format Flags (for list, get):
+  -o, --output string            Specify output format (table [default], json, md)
+  --json                         Output formatted JSON (for AI Agent tool calling)
+  --md, --markdown               Output Markdown document/table (for LLM context injection)
+
+Create and Edit Flags (create / edit):
+  -d, --desc string              Issue description (Markdown supported, converted to ADF)
+  -s, --summary string           Issue summary/title (edit only)
+  -t, --type string              Issue type (default: 'Task', choices: Task, Story, Epic, Subtask, Bug)
+  -l, --labels string            Labels list (comma-separated, e.g. 'AI,Development')
+  --due string                   Due date (format: YYYY-MM-DD, clear: none)
+  -p, --project string           Project key (default: config project_key)
+  --parent string                Parent issue key (required for Subtask, or Epic linking)
+  --force-labels                 Allow non-standard labels outside catalog
+  --allow-empty-desc             Allow creating issue without description
+
+Exit Codes:
+  0: Success (output returned to stdout)
+  1: Failure (argument error, API authentication error, network failure, etc., error returned to stderr)
+
+AI Agent / SKILL Best Practices:
+  1. For listing issues:
+     - For scripts/tools: 'jira list --json' or 'jira list "<JQL>" --json'
+     - For markdown summaries: 'jira list --md'
+  2. For full issue context:
+     - 'jira get <KEY> --md' outputs description, subtasks, and comments in a single markdown document.
+  3. Before creating an issue:
+     - Run 'jira labels' to inspect standard team labels and avoid typos.
+  4. Before changing status:
+     - Run 'jira transitions <KEY>' to verify exact available status names before calling 'jira move'.
+
+Examples:
+  jira list --md
+  jira list "labels = AI and status = 'In Progress'" --json
+  jira get KAN-10 --md
+  jira create "Feature development" -d "Detailed specs" -l "AI,Development" --due 2026-10-15
+  jira create "Subtask item" -t Subtask --parent KAN-10
+  jira edit KAN-10 --due 2026-10-20 -l "AI,QA"
+  jira transitions KAN-10
+  jira move KAN-10 "In Progress"
+  jira comment KAN-10 "Review completed."
+`, a.Version)
 }
 
-// extractProfileFlag extracts and removes --profile or --profile=value from args.
-func extractProfileFlag(args []string) (string, []string) {
-	var filtered []string
-	var profile string
+// extractGlobalFlags extracts and removes --profile and --lang flags from args.
+func extractGlobalFlags(args []string) (profile string, lang string, cleanArgs []string) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if arg == "--profile" {
@@ -170,19 +246,42 @@ func extractProfileFlag(args []string) (string, []string) {
 		} else if strings.HasPrefix(arg, "--profile=") {
 			profile = strings.TrimPrefix(arg, "--profile=")
 			continue
+		} else if arg == "--lang" {
+			if i+1 < len(args) {
+				lang = args[i+1]
+				i++
+				continue
+			}
+		} else if strings.HasPrefix(arg, "--lang=") {
+			lang = strings.TrimPrefix(arg, "--lang=")
+			continue
 		}
-		filtered = append(filtered, arg)
+		cleanArgs = append(cleanArgs, arg)
 	}
-	return profile, filtered
+	return profile, lang, cleanArgs
+}
+
+// extractProfileFlag extracts and removes --profile from args (compatibility wrapper).
+func extractProfileFlag(args []string) (string, []string) {
+	p, _, clean := extractGlobalFlags(args)
+	return p, clean
 }
 
 // Run executes the application logic with arguments and I/O streams.
 // Returns an integer exit code (0 for success, 1 for error).
 func (a *App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	profile, cleanArgs := extractProfileFlag(args)
+	profile, lang, cleanArgs := extractGlobalFlags(args)
 	if profile != "" {
 		pkg.SetActiveProfile(profile)
 	}
+
+	profileLang := ""
+	if cfgPath, err := pkg.GetDefaultConfigPath(); err == nil {
+		if pCfg, found, _ := pkg.ReadProfileConfig(cfgPath, pkg.GetActiveProfile()); found {
+			profileLang = pCfg.Language
+		}
+	}
+	i18n.Init(lang, profileLang)
 
 	if len(cleanArgs) == 0 {
 		a.PrintUsage(stdout)
@@ -192,16 +291,17 @@ func (a *App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	commandName := cleanArgs[0]
 	cmd, exists := a.commands[commandName]
 	if !exists {
-		fmt.Fprintf(stderr, "알 수 없는 명령어: %s\n", commandName)
+		fmt.Fprintf(stderr, i18n.Sprintf("app.err_unknown_command", commandName))
 		a.PrintUsage(stderr)
 		return 1
 	}
 
 	if err := cmd.Execute(ctx, cleanArgs[1:], stdout, stderr); err != nil {
-		if !strings.HasPrefix(err.Error(), "❌") && !strings.HasPrefix(err.Error(), "사용법:") {
-			fmt.Fprintf(stderr, "❌ %s\n", err)
+		errMsg := err.Error()
+		if !strings.HasPrefix(errMsg, "❌") && !strings.HasPrefix(errMsg, "사용법:") && !strings.HasPrefix(errMsg, "Usage:") {
+			fmt.Fprintf(stderr, "❌ %s\n", errMsg)
 		} else {
-			fmt.Fprintln(stderr, err)
+			fmt.Fprintln(stderr, errMsg)
 		}
 		return 1
 	}

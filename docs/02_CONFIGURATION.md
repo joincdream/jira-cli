@@ -76,6 +76,7 @@ project_key = MYPROJ
 | `email` | **필수** | Jira 계정 이메일 주소 | - |
 | `api_token` | **필수** | Atlassian API 토큰 (Basic Auth 암호로 사용됨) | - |
 | `project_key` | 선택 | 작업을 생성하거나 목록을 조회할 기본 프로젝트 키 | `KAN` |
+| `language` | 선택 | 프로필별 기본 UI 언어 (`ko`, `en`) | 시스템 로케일 또는 `en` |
 
 ---
 

@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
+	"unicode/utf8"
 
+	"tools/jira/internal/i18n"
 	"tools/jira/pkg"
 )
 
@@ -21,7 +24,7 @@ func NewListCommand(cp ClientProvider) *ListCommand {
 
 func (c *ListCommand) Name() string        { return "list" }
 func (c *ListCommand) Aliases() []string  { return []string{"ls"} }
-func (c *ListCommand) Description() string { return "Jira 이슈 목록을 조회합니다." }
+func (c *ListCommand) Description() string { return i18n.T("cmd.list.desc") }
 
 // parseOutputFormat extracts output format (--json, --md, -o, --output) from args.
 // Supported formats: "table" (default), "json", "md" (or "markdown").
@@ -45,7 +48,7 @@ func parseOutputFormat(args []string) (string, []string, error) {
 				i++
 				continue
 			}
-			return "", nil, fmt.Errorf("-o / --output 플래그에 포맷(table, json, md)을 지정하세요")
+			return "", nil, fmt.Errorf("%s", i18n.T("cmd.common.err_output_flag_missing_format"))
 		}
 		if strings.HasPrefix(arg, "-o=") {
 			format = strings.ToLower(strings.TrimPrefix(arg, "-o="))
@@ -63,13 +66,18 @@ func parseOutputFormat(args []string) (string, []string, error) {
 	}
 
 	if format != "table" && format != "json" && format != "md" {
-		return "", nil, fmt.Errorf("지원하지 않는 출력 포맷: '%s' (지원 포맷: table, json, md)", format)
+		return "", nil, fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_unsupported_output_format", format))
 	}
 
 	return format, cleanArgs, nil
 }
 
 func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if isHelpRequested(args) {
+		fmt.Fprintln(stdout, i18n.T("cmd.list.usage"))
+		return nil
+	}
+
 	format, cleanArgs, err := parseOutputFormat(args)
 	if err != nil {
 		return err
@@ -77,7 +85,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 
 	client, err := c.clientProvider()
 	if err != nil {
-		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
 	jql := ""
@@ -87,7 +95,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 
 	issues, err := client.ListIssues(ctx, jql)
 	if err != nil {
-		return fmt.Errorf("이슈 목록 조회 실패: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.list.err_fetch", err))
 	}
 
 	switch format {
@@ -113,27 +121,32 @@ func NewGetCommand(cp ClientProvider) *GetCommand {
 
 func (c *GetCommand) Name() string        { return "get" }
 func (c *GetCommand) Aliases() []string  { return []string{"view", "show"} }
-func (c *GetCommand) Description() string { return "특정 이슈의 상세 정보를 조회합니다." }
+func (c *GetCommand) Description() string { return i18n.T("cmd.get.desc") }
 
 func (c *GetCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if isHelpRequested(args) {
+		fmt.Fprintln(stdout, i18n.T("cmd.get.usage"))
+		return nil
+	}
+
 	format, cleanArgs, err := parseOutputFormat(args)
 	if err != nil {
 		return err
 	}
 
 	if len(cleanArgs) < 1 {
-		return fmt.Errorf("사용법: jira get <KEY> [-o table|json|md] [--json] [--md] (예: jira get KAN-1 --md)")
+		return fmt.Errorf("%s", i18n.T("cmd.get.err_missing_key"))
 	}
 
 	key := strings.ToUpper(cleanArgs[0])
 	client, err := c.clientProvider()
 	if err != nil {
-		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
 	issue, err := client.GetIssue(ctx, key)
 	if err != nil {
-		return fmt.Errorf("이슈(%s) 조회 실패: %w", key, err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.get.err_fetch", key, err))
 	}
 
 	switch format {
@@ -160,35 +173,67 @@ func NewCreateCommand(cp ClientProvider, cl CatalogLoader) *CreateCommand {
 
 func (c *CreateCommand) Name() string        { return "create" }
 func (c *CreateCommand) Aliases() []string  { return []string{"new", "add"} }
-func (c *CreateCommand) Description() string { return "신규 이슈를 생성합니다." }
+func (c *CreateCommand) Description() string { return i18n.T("cmd.create.desc") }
 
 func (c *CreateCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	if len(args) < 1 {
-		return fmt.Errorf("사용법: jira create <SUMMARY> [-d description] [-t type] [-l labels] [--due YYYY-MM-DD]")
-	}
-
-	summary := args[0]
-
 	fs := flag.NewFlagSet("create", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
 	var desc, issueType, due, project, parent, labelsStr string
-	var forceLabels bool
+	var forceLabels, allowEmptyDesc bool
 
-	fs.StringVar(&desc, "d", "", "이슈 상세 설명")
-	fs.StringVar(&desc, "desc", "", "이슈 상세 설명")
-	fs.StringVar(&issueType, "t", "작업", "이슈 유형 (작업/스토리/에픽/Subtask)")
-	fs.StringVar(&issueType, "type", "작업", "이슈 유형")
-	fs.StringVar(&labelsStr, "l", "", "라벨 목록 (쉼표 구분)")
-	fs.StringVar(&labelsStr, "labels", "", "라벨 목록 (쉼표 구분)")
-	fs.StringVar(&due, "due", "", "마감일 (YYYY-MM-DD)")
-	fs.StringVar(&project, "p", "", "프로젝트 키")
-	fs.StringVar(&project, "project", "", "프로젝트 키")
-	fs.StringVar(&parent, "parent", "", "상위 이슈 키 (Subtask인 경우)")
-	fs.BoolVar(&forceLabels, "force-labels", false, "표준 카탈로그 외 임의 라벨 허용")
+	fs.StringVar(&desc, "d", "", i18n.T("cmd.create.flag_desc"))
+	fs.StringVar(&desc, "desc", "", i18n.T("cmd.create.flag_desc"))
+	fs.StringVar(&desc, "description", "", i18n.T("cmd.create.flag_desc"))
+	fs.StringVar(&issueType, "t", "작업", i18n.T("cmd.create.flag_type"))
+	fs.StringVar(&issueType, "type", "작업", i18n.T("cmd.create.flag_type"))
+	fs.StringVar(&labelsStr, "l", "", i18n.T("cmd.create.flag_labels"))
+	fs.StringVar(&labelsStr, "labels", "", i18n.T("cmd.create.flag_labels"))
+	fs.StringVar(&due, "due", "", i18n.T("cmd.create.flag_due"))
+	fs.StringVar(&project, "p", "", i18n.T("cmd.create.flag_project"))
+	fs.StringVar(&project, "project", "", i18n.T("cmd.create.flag_project"))
+	fs.StringVar(&parent, "parent", "", i18n.T("cmd.create.flag_parent"))
+	fs.BoolVar(&forceLabels, "force-labels", false, i18n.T("cmd.create.flag_force_labels"))
+	fs.BoolVar(&allowEmptyDesc, "allow-empty-desc", false, i18n.T("cmd.create.flag_allow_empty_desc"))
 
-	if err := fs.Parse(args[1:]); err != nil {
+	fs.Usage = func() {
+		fmt.Fprintln(stdout, i18n.T("cmd.create.usage"))
+		fs.SetOutput(stdout)
+		fs.PrintDefaults()
+		fs.SetOutput(stderr)
+	}
+
+	if isHelpRequested(args) {
+		fs.Usage()
+		return nil
+	}
+
+	posArgs, err := parseFlagsAndPositional(fs, args)
+	if err != nil {
 		return err
+	}
+
+	if len(posArgs) < 1 {
+		return fmt.Errorf("%s", i18n.T("cmd.create.err_summary_required"))
+	}
+
+	argSummary := posArgs[0]
+	summary := strings.TrimSpace(argSummary.Value)
+	if utf8.RuneCountInString(summary) < 5 {
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_summary_min_length", summary))
+	}
+	if !argSummary.Literal && strings.HasPrefix(summary, "-") {
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_summary_flag_prefix", summary))
+	}
+
+	if strings.TrimSpace(desc) == "" && !allowEmptyDesc {
+		return fmt.Errorf("%s", i18n.T("cmd.create.err_desc_required"))
+	}
+
+	if strings.TrimSpace(due) != "" {
+		if _, err := time.Parse("2006-01-02", strings.TrimSpace(due)); err != nil {
+			return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_invalid_due_date", due))
+		}
 	}
 
 	var rawLabels []string
@@ -208,12 +253,7 @@ func (c *CreateCommand) Execute(ctx context.Context, args []string, stdout, stde
 		if catalog != nil {
 			normalized, invalid, err := catalog.ValidateAndNormalizeLabels(rawLabels)
 			if err != nil {
-				var sb strings.Builder
-				sb.WriteString(fmt.Sprintf("❌ 라벨 유효성 오류: %v\n", err))
-				sb.WriteString(fmt.Sprintf("   정의되지 않은 라벨: %s\n\n", strings.Join(invalid, ", ")))
-				sb.WriteString("💡 표준 라벨 목록은 'jira labels' 명령어로 확인하세요.\n")
-				sb.WriteString("   (표준 외 라벨을 강제 등록하려면 --force-labels 옵션을 추가하세요)")
-				return fmt.Errorf("%s", sb.String())
+				return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_label_validation", err, strings.Join(invalid, ", ")))
 			}
 			labels = normalized
 		}
@@ -221,17 +261,17 @@ func (c *CreateCommand) Execute(ctx context.Context, args []string, stdout, stde
 
 	client, err := c.clientProvider()
 	if err != nil {
-		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
 	resp, err := client.CreateIssue(ctx, project, summary, desc, issueType, due, parent, labels)
 	if err != nil {
-		return fmt.Errorf("이슈 생성 실패: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_api_create", err))
 	}
 
-	fmt.Fprintf(stdout, "✅ Jira 이슈 생성 완료! [Key: %s] (%s/browse/%s)\n", resp.Key, client.GetConfig().InstanceURL, resp.Key)
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.create.success", resp.Key, client.GetConfig().InstanceURL, resp.Key))
 	if len(labels) > 0 {
-		fmt.Fprintf(stdout, "   🏷️ 적용된 표준 라벨: %s\n", strings.Join(labels, ", "))
+		fmt.Fprintf(stdout, i18n.Sprintf("cmd.create.applied_labels", strings.Join(labels, ", ")))
 	}
 
 	return nil
@@ -249,33 +289,47 @@ func NewEditCommand(cp ClientProvider, cl CatalogLoader) *EditCommand {
 
 func (c *EditCommand) Name() string        { return "edit" }
 func (c *EditCommand) Aliases() []string  { return []string{"update"} }
-func (c *EditCommand) Description() string { return "기존 이슈 정보를 수정합니다." }
+func (c *EditCommand) Description() string { return i18n.T("cmd.edit.desc") }
 
 func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	if len(args) < 1 {
-		return fmt.Errorf("사용법: jira edit <KEY> [-l <LABELS>] [--due <YYYY-MM-DD>] [--parent <PARENT_KEY>] [-s <SUMMARY>] [-d <DESC>] [--force-labels]")
-	}
-
-	key := strings.ToUpper(args[0])
 	fs := flag.NewFlagSet("edit", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
 	var labelsStr, dueStr, parentStr, summaryStr, descStr string
 	var forceLabels bool
-	fs.StringVar(&labelsStr, "l", "", "라벨 목록 (쉼표 구분)")
-	fs.StringVar(&labelsStr, "labels", "", "라벨 목록 (쉼표 구분)")
-	fs.StringVar(&dueStr, "due", "", "마감일 (YYYY-MM-DD 또는 none)")
-	fs.StringVar(&parentStr, "parent", "", "상위 이슈/에픽 키 (또는 none)")
-	fs.StringVar(&summaryStr, "s", "", "이슈 요약/제목")
-	fs.StringVar(&summaryStr, "summary", "", "이슈 요약/제목")
-	fs.StringVar(&descStr, "d", "", "이슈 상세 설명")
-	fs.StringVar(&descStr, "desc", "", "이슈 상세 설명")
-	fs.StringVar(&descStr, "description", "", "이슈 상세 설명")
-	fs.BoolVar(&forceLabels, "force-labels", false, "표준 카탈로그 외 임의 라벨 허용")
+	fs.StringVar(&labelsStr, "l", "", i18n.T("cmd.create.flag_labels"))
+	fs.StringVar(&labelsStr, "labels", "", i18n.T("cmd.create.flag_labels"))
+	fs.StringVar(&dueStr, "due", "", i18n.T("cmd.edit.flag_due"))
+	fs.StringVar(&parentStr, "parent", "", i18n.T("cmd.edit.flag_parent"))
+	fs.StringVar(&summaryStr, "s", "", i18n.T("cmd.edit.flag_summary"))
+	fs.StringVar(&summaryStr, "summary", "", i18n.T("cmd.edit.flag_summary"))
+	fs.StringVar(&descStr, "d", "", i18n.T("cmd.create.flag_desc"))
+	fs.StringVar(&descStr, "desc", "", i18n.T("cmd.create.flag_desc"))
+	fs.StringVar(&descStr, "description", "", i18n.T("cmd.create.flag_desc"))
+	fs.BoolVar(&forceLabels, "force-labels", false, i18n.T("cmd.create.flag_force_labels"))
 
-	if err := fs.Parse(args[1:]); err != nil {
+	fs.Usage = func() {
+		fmt.Fprintln(stdout, i18n.T("cmd.edit.usage"))
+		fs.SetOutput(stdout)
+		fs.PrintDefaults()
+		fs.SetOutput(stderr)
+	}
+
+	if isHelpRequested(args) {
+		fs.Usage()
+		return nil
+	}
+
+	posArgs, err := parseFlagsAndPositional(fs, args)
+	if err != nil {
 		return err
 	}
+
+	if len(posArgs) < 1 {
+		return fmt.Errorf("%s", i18n.T("cmd.edit.err_missing_key"))
+	}
+
+	key := strings.ToUpper(strings.TrimSpace(posArgs[0].Value))
 
 	isSet := func(names ...string) bool {
 		found := false
@@ -290,7 +344,7 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	}
 
 	if !isSet("l", "labels", "due", "parent", "s", "summary", "d", "desc", "description") {
-		return fmt.Errorf("수정할 항목을 하나 이상 지정하세요. (예: jira edit KAN-9 --due 2026-09-01 -l 'FDE,AI' --parent KAN-17)")
+		return fmt.Errorf("%s", i18n.T("cmd.edit.err_no_fields_to_update"))
 	}
 
 	var opts pkg.UpdateIssueOptions
@@ -312,12 +366,7 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 			if catalog != nil {
 				normalized, invalid, err := catalog.ValidateAndNormalizeLabels(rawLabels)
 				if err != nil {
-					var sb strings.Builder
-					sb.WriteString(fmt.Sprintf("❌ 라벨 유효성 오류: %v\n", err))
-					sb.WriteString(fmt.Sprintf("   정의되지 않은 라벨: %s\n\n", strings.Join(invalid, ", ")))
-					sb.WriteString("💡 표준 라벨 목록은 'jira labels' 명령어로 확인하세요.\n")
-					sb.WriteString("   (표준 외 라벨을 강제 등록하려면 --force-labels 옵션을 추가하세요)")
-					return fmt.Errorf("%s", sb.String())
+					return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_label_validation", err, strings.Join(invalid, ", ")))
 				}
 				labels = normalized
 			}
@@ -325,18 +374,23 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		opts.Labels = labels
 		opts.UpdateLabels = true
 		if len(labels) == 0 {
-			updatedItems = append(updatedItems, "라벨: (제거)")
+			updatedItems = append(updatedItems, i18n.T("cmd.edit.item_labels_cleared"))
 		} else {
-			updatedItems = append(updatedItems, fmt.Sprintf("라벨: [%s]", strings.Join(labels, ", ")))
+			updatedItems = append(updatedItems, i18n.Sprintf("cmd.edit.item_labels_updated", strings.Join(labels, ", ")))
 		}
 	}
 
 	if isSet("due") {
-		opts.DueDate = &dueStr
-		if dueStr == "" || strings.ToLower(dueStr) == "none" || strings.ToLower(dueStr) == "null" {
-			updatedItems = append(updatedItems, "마감일: (제거)")
+		trimmedDue := strings.TrimSpace(dueStr)
+		if trimmedDue == "" || strings.ToLower(trimmedDue) == "none" || strings.ToLower(trimmedDue) == "null" {
+			opts.DueDate = &trimmedDue
+			updatedItems = append(updatedItems, i18n.T("cmd.edit.item_due_cleared"))
 		} else {
-			updatedItems = append(updatedItems, fmt.Sprintf("마감일: %s", dueStr))
+			if _, err := time.Parse("2006-01-02", trimmedDue); err != nil {
+				return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_invalid_due_date", trimmedDue))
+			}
+			opts.DueDate = &trimmedDue
+			updatedItems = append(updatedItems, i18n.Sprintf("cmd.edit.item_due_updated", trimmedDue))
 		}
 	}
 
@@ -344,32 +398,32 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		pUpper := strings.ToUpper(strings.TrimSpace(parentStr))
 		opts.ParentKey = &pUpper
 		if pUpper == "" || strings.ToLower(pUpper) == "none" || strings.ToLower(pUpper) == "null" {
-			updatedItems = append(updatedItems, "상위 이슈: (제거)")
+			updatedItems = append(updatedItems, i18n.T("cmd.edit.item_parent_cleared"))
 		} else {
-			updatedItems = append(updatedItems, fmt.Sprintf("상위 이슈: %s", pUpper))
+			updatedItems = append(updatedItems, i18n.Sprintf("cmd.edit.item_parent_updated", pUpper))
 		}
 	}
 
 	if isSet("s", "summary") {
 		opts.Summary = &summaryStr
-		updatedItems = append(updatedItems, fmt.Sprintf("요약: %s", summaryStr))
+		updatedItems = append(updatedItems, i18n.Sprintf("cmd.edit.item_summary_updated", summaryStr))
 	}
 
 	if isSet("d", "desc", "description") {
 		opts.Description = &descStr
-		updatedItems = append(updatedItems, "설명: (수정됨)")
+		updatedItems = append(updatedItems, i18n.T("cmd.edit.item_desc_updated"))
 	}
 
 	client, err := c.clientProvider()
 	if err != nil {
-		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
 	if err := client.UpdateIssue(ctx, key, opts); err != nil {
-		return fmt.Errorf("이슈(%s) 수정 실패: %w", key, err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.edit.err_api_update", key, err))
 	}
 
-	fmt.Fprintf(stdout, "✅ [%s] 이슈가 성공적으로 업데이트되었습니다: %s\n", key, strings.Join(updatedItems, " | "))
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.edit.success", key, strings.Join(updatedItems, " | ")))
 	return nil
 }
 
@@ -384,11 +438,16 @@ func NewMoveCommand(cp ClientProvider) *MoveCommand {
 
 func (c *MoveCommand) Name() string        { return "move" }
 func (c *MoveCommand) Aliases() []string  { return []string{"transition", "status"} }
-func (c *MoveCommand) Description() string { return "이슈의 상태를 변경(전이)합니다." }
+func (c *MoveCommand) Description() string { return i18n.T("cmd.move.desc") }
 
 func (c *MoveCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if isHelpRequested(args) {
+		fmt.Fprintln(stdout, i18n.T("cmd.move.usage"))
+		return nil
+	}
+
 	if len(args) < 2 {
-		return fmt.Errorf("사용법: jira move <KEY> <STATUS> (예: jira move KAN-1 '진행 중')")
+		return fmt.Errorf("%s", i18n.T("cmd.move.err_missing_args"))
 	}
 
 	key := strings.ToUpper(args[0])
@@ -396,14 +455,14 @@ func (c *MoveCommand) Execute(ctx context.Context, args []string, stdout, stderr
 
 	client, err := c.clientProvider()
 	if err != nil {
-		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
 	if err := client.TransitionIssue(ctx, key, targetStatus); err != nil {
-		return fmt.Errorf("상태 변경 실패: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.move.err_transition", err))
 	}
 
-	fmt.Fprintf(stdout, "✅ [%s] 이슈 상태가 '%s'로 성공적으로 변경되었습니다.\n", key, targetStatus)
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.move.success", key, targetStatus))
 	return nil
 }
 
@@ -418,11 +477,16 @@ func NewCommentCommand(cp ClientProvider) *CommentCommand {
 
 func (c *CommentCommand) Name() string        { return "comment" }
 func (c *CommentCommand) Aliases() []string  { return []string{} }
-func (c *CommentCommand) Description() string { return "이슈에 코멘트를 등록합니다." }
+func (c *CommentCommand) Description() string { return i18n.T("cmd.comment.desc") }
 
 func (c *CommentCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if isHelpRequested(args) {
+		fmt.Fprintln(stdout, i18n.T("cmd.comment.usage"))
+		return nil
+	}
+
 	if len(args) < 2 {
-		return fmt.Errorf("사용법: jira comment <KEY> <MESSAGE> (예: jira comment KAN-1 '코드 리뷰 완료')")
+		return fmt.Errorf("%s", i18n.T("cmd.comment.err_missing_args"))
 	}
 
 	key := strings.ToUpper(args[0])
@@ -430,14 +494,14 @@ func (c *CommentCommand) Execute(ctx context.Context, args []string, stdout, std
 
 	client, err := c.clientProvider()
 	if err != nil {
-		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
 	if err := client.AddComment(ctx, key, message); err != nil {
-		return fmt.Errorf("코멘트 등록 실패: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.comment.err_api_comment", err))
 	}
 
-	fmt.Fprintf(stdout, "✅ [%s] 코멘트가 등록되었습니다.\n", key)
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.comment.success", key))
 	return nil
 }
 
@@ -452,27 +516,32 @@ func NewTransitionsCommand(cp ClientProvider) *TransitionsCommand {
 
 func (c *TransitionsCommand) Name() string        { return "transitions" }
 func (c *TransitionsCommand) Aliases() []string  { return []string{} }
-func (c *TransitionsCommand) Description() string { return "전환 가능한 워크플로우 상태 목록을 조회합니다." }
+func (c *TransitionsCommand) Description() string { return i18n.T("cmd.transitions.desc") }
 
 func (c *TransitionsCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if isHelpRequested(args) {
+		fmt.Fprintln(stdout, i18n.T("cmd.transitions.usage"))
+		return nil
+	}
+
 	if len(args) < 1 {
-		return fmt.Errorf("사용법: jira transitions <KEY> (예: jira transitions KAN-1)")
+		return fmt.Errorf("%s", i18n.T("cmd.transitions.err_missing_key"))
 	}
 
 	key := strings.ToUpper(args[0])
 	client, err := c.clientProvider()
 	if err != nil {
-		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
 	transitions, err := client.GetTransitions(ctx, key)
 	if err != nil {
-		return fmt.Errorf("전환 가능 목록 조회 실패: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.transitions.err_fetch", err))
 	}
 
-	fmt.Fprintf(stdout, "📋 [%s] 전환 가능한 상태 목록:\n", key)
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.transitions.header", key))
 	for _, t := range transitions {
-		fmt.Fprintf(stdout, "  • ID: %-5s ➔ 이름: %-15s (목적지: %s)\n", t.ID, t.Name, t.To.Name)
+		fmt.Fprintf(stdout, i18n.Sprintf("cmd.transitions.item", t.ID, t.Name, t.To.Name))
 	}
 	return nil
 }
@@ -488,23 +557,28 @@ func NewDeleteCommand(cp ClientProvider) *DeleteCommand {
 
 func (c *DeleteCommand) Name() string        { return "delete" }
 func (c *DeleteCommand) Aliases() []string  { return []string{"rm"} }
-func (c *DeleteCommand) Description() string { return "이슈를 삭제합니다." }
+func (c *DeleteCommand) Description() string { return i18n.T("cmd.delete.desc") }
 
 func (c *DeleteCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if isHelpRequested(args) {
+		fmt.Fprintln(stdout, i18n.T("cmd.delete.usage"))
+		return nil
+	}
+
 	if len(args) < 1 {
-		return fmt.Errorf("사용법: jira delete <KEY> (예: jira delete KAN-1)")
+		return fmt.Errorf("%s", i18n.T("cmd.delete.err_missing_key"))
 	}
 
 	key := strings.ToUpper(args[0])
 	client, err := c.clientProvider()
 	if err != nil {
-		return fmt.Errorf("Jira 클라이언트 초기화 오류: %w", err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
 	if err := client.DeleteIssue(ctx, key, true); err != nil {
-		return fmt.Errorf("이슈(%s) 삭제 실패: %w", key, err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.delete.err_api_delete", key, err))
 	}
 
-	fmt.Fprintf(stdout, "🗑️  [%s] 이슈가 성공적으로 삭제되었습니다.\n", key)
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.delete.success", key))
 	return nil
 }

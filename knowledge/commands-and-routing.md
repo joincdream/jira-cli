@@ -10,10 +10,12 @@ tags:
   - markdown
   - json
 status: stable
-timestamp: 2026-09-20T18:00:00+09:00
+timestamp: 2026-09-23T11:25:00+09:00
 sources:
   - internal/app/commands_issue.go
   - internal/app/commands_meta.go
+  - internal/app/app.go
+  - internal/i18n/i18n.go
   - pkg/format.go
   - pkg/format_test.go
 verified: true
@@ -81,3 +83,49 @@ jira list --md "status = '진행 중'"
 jira get KAN-10 --json
 jira get --json KAN-10
 ```
+
+---
+
+## ⚙️ 4. 인자 정규화 및 사전 검증 가드레일 (`internal/app/flags.go`)
+
+### 1) 순서 독립성 (Order Independence) & `--help` 우선 처리
+- 모든 서브커맨드는 `isHelpRequested`를 통해 `--help` 및 `-h` 플래그를 최우선 감지하여, API 요청을 발생시키지 않고 안전하게 도움말(Usage)을 `stdout`으로 출력하고 `Exit 0`으로 종료합니다.
+- `parseFlagsAndPositional` 함수를 통해 위치 인자와 플래그의 배치 순서가 바뀌어도(예: `jira create -d "설명" "제목"`) 동일하게 파싱됩니다.
+- Double Dash(`--`) 이후의 모든 토큰은 순수 위치 인자로 보호되어 `-`로 시작하는 제목도 안전하게 전달 가능합니다.
+
+### 2) 티켓 생성(Create) 데이터 무결성 가드레일
+- **제목(Summary) 검증**: 공백 제외 최소 5자 이상 필수(`utf8.RuneCountInString`), `--` 없이 `-`로 시작하는 플래그 오인 문자열 차단.
+- **상세 설명(Description) 필수화**: 본문 없는 빈 티켓 양산을 방지하기 위해 기본 필수 요구 (설명 없는 간이 생성이 필요한 경우 `--allow-empty-desc` 명시 필요).
+- **마감일(Due Date) 사전 검증**: Jira 서버 전송 전 로컬에서 `YYYY-MM-DD` 포맷 유효성 사전 검증 (Fail-Fast).
+
+---
+
+## 🌐 5. i18n 다국어 지원 및 로케일 해석 엔진 (`internal/i18n`)
+
+CLI 전반의 모든 도움말, 에러 메시지, 터미널 포맷터 라벨은 다국어 지원(`ko`, `en`)을 제공합니다.
+
+### 1) 5단계 로케일 결정 우선순위
+```text
+1. CLI 플래그:      --lang ko  (또는 --lang=en)
+       ↓ (미지정 시)
+2. 환경 변수:        JIRA_LANG=ko
+       ↓ (미지정 시)
+3. 프로필 설정:      ~/.config/jira/config 내 [profile] 섹션의 language = ko
+       ↓ (미지정 시)
+4. 시스템 OS 로케일:  $LC_ALL 또는 $LANG (예: ko_KR.UTF-8 ➔ ko)
+       ↓ (미지정 시)
+5. 기본값 (Fallback): "en"
+```
+
+### 2) 사용법 및 예시
+```bash
+# 강제 영문 모드로 실행
+jira --lang en create "New Task" -d "Details"
+
+# 강제 한국어 모드로 실행
+jira --lang ko list --md
+
+# 환경 변수로 기본 언어 고정
+export JIRA_LANG=ko
+```
+

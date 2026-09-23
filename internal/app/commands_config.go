@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"tools/jira/internal/i18n"
 	"tools/jira/pkg"
 )
 
@@ -33,7 +34,7 @@ func NewConfigureCommandWithPath(stdin io.Reader, configPath string) *ConfigureC
 
 func (c *ConfigureCommand) Name() string        { return "configure" }
 func (c *ConfigureCommand) Aliases() []string  { return []string{"configuration", "config"} }
-func (c *ConfigureCommand) Description() string { return "Jira 계정 프로필(~/.config/jira/config)을 대화형으로 설정합니다." }
+func (c *ConfigureCommand) Description() string { return i18n.T("cmd.configure.desc") }
 
 func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	targetPath := c.configPath
@@ -99,25 +100,25 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 		return input, nil
 	}
 
-	fmt.Fprintln(stdout, "🔧 Jira CLI 환경 설정 마법사")
-	fmt.Fprintf(stdout, "설정 파일 대상: %s\n", targetPath)
-	fmt.Fprintf(stdout, "대상 프로필:   [%s]\n\n", profile)
+	fmt.Fprintln(stdout, i18n.T("cmd.configure.wizard_title"))
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.target_file", targetPath))
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.target_profile", profile))
 
 	defaultURL := existing.InstanceURL
 	if defaultURL == "" {
 		defaultURL = "https://joincdream.atlassian.net"
 	}
-	instanceURL, err := prompt("instance_url", "Jira Instance URL", defaultURL, "")
+	instanceURL, err := prompt("instance_url", i18n.T("cmd.configure.prompt_instance_url"), defaultURL, "")
 	if err != nil {
 		return err
 	}
 
-	email, err := prompt("email", "Jira Account Email", existing.Email, "")
+	email, err := prompt("email", i18n.T("cmd.configure.prompt_email"), existing.Email, "")
 	if err != nil {
 		return err
 	}
 
-	apiToken, err := prompt("api_token", "Jira API Token", "", existing.APIToken)
+	apiToken, err := prompt("api_token", i18n.T("cmd.configure.prompt_api_token"), "", existing.APIToken)
 	if err != nil {
 		return err
 	}
@@ -126,7 +127,7 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 	if defaultKey == "" {
 		defaultKey = "KAN"
 	}
-	projectKey, err := prompt("project_key", "Default Project Key", defaultKey, "")
+	projectKey, err := prompt("project_key", i18n.T("cmd.configure.prompt_project_key"), defaultKey, "")
 	if err != nil {
 		return err
 	}
@@ -136,30 +137,30 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 		Email:       email,
 		APIToken:    apiToken,
 		ProjectKey:  projectKey,
+		Language:    existing.Language,
 	}
 
 	if err := pkg.WriteProfileConfig(targetPath, profile, cfg); err != nil {
-		return fmt.Errorf("설정 파일 저장 실패 (%s): %w", targetPath, err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.configure.err_save", targetPath, err))
 	}
 
-	fmt.Fprintf(stdout, "\n✅ Jira 설정이 성공적으로 저장되었습니다: %s (프로필: [%s])\n", targetPath, profile)
+	fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.save_success", targetPath, profile))
 	return nil
 }
 
 func (c *ConfigureCommand) listProfiles(configPath string, stdout io.Writer) error {
 	profiles, err := pkg.ListProfiles(configPath)
 	if err != nil {
-		return fmt.Errorf("프로필 목록 조회 실패 (%s): %w", configPath, err)
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.configure.err_list_profiles", configPath, err))
 	}
 
 	if len(profiles) == 0 {
-		fmt.Fprintf(stdout, "등록된 Jira 프로필이 없습니다 (%s).\n'jira configure' 명령어로 프로필을 생성하세요.\n", configPath)
+		fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.no_profiles", configPath))
 		return nil
 	}
 
 	active := pkg.GetActiveProfile()
-	fmt.Fprintf(stdout, "설정 파일: %s\n\n", configPath)
-	fmt.Fprintln(stdout, "등록된 프로필 목록:")
+	fmt.Fprintf(stdout, "%s\n", i18n.Sprintf("cmd.configure.list_header", configPath))
 	for _, p := range profiles {
 		cfg, _, _ := pkg.ReadProfileConfig(configPath, p)
 		marker := "  "
@@ -171,7 +172,7 @@ func (c *ConfigureCommand) listProfiles(configPath string, stdout io.Writer) err
 			summary = fmt.Sprintf(" (%s, %s)", cfg.InstanceURL, cfg.Email)
 		}
 		if marker == "* " {
-			fmt.Fprintf(stdout, "%s[%s]%s [현재 활성]\n", marker, p, summary)
+			fmt.Fprintf(stdout, "%s[%s]%s %s\n", marker, p, summary, i18n.T("cmd.configure.active_profile_marker"))
 		} else {
 			fmt.Fprintf(stdout, "%s[%s]%s\n", marker, p, summary)
 		}

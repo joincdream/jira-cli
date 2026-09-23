@@ -59,25 +59,34 @@
 ---
 
 ### 3. `create` (신규 이슈 생성)
-- **문법**: `jira create <SUMMARY> [flags]`
+- **문법**: `jira create <SUMMARY> -d <DESC> [flags]` (인자와 플래그의 순서 독립성 지원)
 - **인수**:
-  - `<SUMMARY>` (필수): 이슈 제목.
+  - `<SUMMARY>` (필수): 이슈 제목 (최소 5자 이상, 플래그 오인 방지 검증).
 - **지원 플래그**:
-  - `-d, --desc string`: 본문 상세 설명 (Markdown 형식 지원).
+  - `-d, --desc string`: 본문 상세 설명 (Markdown 형식 지원, 기본 필수).
+  - `--allow-empty-desc`: 상세 설명 없이 간이 티켓 생성 허용.
   - `-t, --type string`: 이슈 유형 (기본값: `작업`, 선택: `스토리`, `에픽`, `Subtask`, `Bug` 등).
   - `-l, --labels string`: 쉼표로 구분된 라벨 목록 (예: `AI,Planning`).
-  - `--due string`: 마감일 (`YYYY-MM-DD` 형식).
+  - `--due string`: 마감일 (`YYYY-MM-DD` 형식, 로컬 사전 검증).
   - `-p, --project string`: 대상 프로젝트 키 (생략 시 기본 프로젝트 사용).
   - `--parent string`: 상위 이슈 키 (`Subtask` 생성 시 필수).
   - `--force-labels`: 표준 카탈로그에 정의되지 않은 임의의 라벨 등록 허용.
-- **처리 흐름**:
-  1. 플래그 파싱 및 입력값 검증.
-  2. `--force-labels`가 없는 경우, `pkg.LoadLabelCatalog()`를 로드하여 입력된 라벨이 표준 카탈로그에 속하는지 검증하고 표준 대소문자로 자동 정규화.
-  3. 본문 텍스트(`-d`)가 존재하면 `pkg.BuildADFDocument()`를 호출하여 ADF JSON AST 구조로 변환.
-  4. `POST /rest/api/3/issue` 호출 후 생성된 이슈 키 및 웹 URL 출력.
+- **가드레일 및 처리 흐름**:
+  1. `--help` 또는 `-h` 선제 감지 시 티켓 생성 없이 사용법 출력 및 `Exit 0`.
+  2. 위치 인자와 플래그 순서 무관 파싱 (예: `jira create -d "설명" "제목"` 지원).
+  3. Double Dash(`--`) 지원으로 `-`로 시작하는 제목 보호 (`jira create -- "-d 제목" -d "설명"`).
+  4. 제목 최소 5자 이상 검증 및 설명 필수 검증 (누락 시 친절한 안내와 함께 로컬 차단).
+  5. 마감일 입력 시 `YYYY-MM-DD` 형식 사전 검증.
+  6. `--force-labels`가 없는 경우, `pkg.LoadLabelCatalog()`를 로드하여 입력된 라벨이 표준 카탈로그에 속하는지 검증하고 표준 대소문자로 자동 정규화.
+  7. 본문 텍스트(`-d`)를 `pkg.BuildADFDocument()`로 ADF JSON 구조로 변환하여 `POST /rest/api/3/issue` 호출.
 - **예시**:
   ```bash
+  # 표준 생성 (순서 자유)
   jira create "RAG 파이프라인 PoC 개발" -d "### 1. 목적\n- 벡터 검색 성능 평가" -l "AI,PoC" --due 2026-09-25
+  jira create -d "상세 설명" "RAG 파이프라인 PoC 개발"
+
+  # 본문 없이 간이 티켓 생성
+  jira create --allow-empty-desc "간이 작업 티켓"
   ```
 
 ---
@@ -164,11 +173,14 @@
   - `jira configure [--profile <name>]` : 지정 프로필(기본: `default`) 대화형 설정
   - `jira configure list` : 등록된 프로필 목록 및 현재 활성 프로필 조회
 - **파일 위치**: `~/.config/jira/config` (INI 포맷, 권한 `0600`)
-- **전역 플래그**: `--profile <name>` 또는 `JIRA_PROFILE` 환경 변수를 모든 명령어와 조합하여 멀티 계정 전환 가능.
+- **전역 플래그**:
+  - `--profile <name>` : 사용할 프로필 지정 (환경 변수: `JIRA_PROFILE`)
+  - `--lang <en|ko>` : UI 표시 언어 설정 (기본: `en`, 환경 변수: `JIRA_LANG`)
 - **예시**:
   ```bash
   jira configure
   jira configure --profile cloit
   jira configure list
-  jira --profile cloit list
+  jira --profile cloit --lang ko list
   ```
+

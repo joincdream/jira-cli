@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+
+	"tools/jira/internal/i18n"
 )
 
 // LabelItem represents a single label entry.
@@ -106,7 +108,7 @@ func (c *LabelCatalog) ValidateAndNormalizeLabels(inputLabels []string) ([]strin
 	}
 
 	if len(invalid) > 0 {
-		return normalized, invalid, fmt.Errorf("유효하지 않은 라벨: %s", strings.Join(invalid, ", "))
+		return normalized, invalid, fmt.Errorf("%s", i18n.Sprintf("pkg.labels.err_invalid_label", strings.Join(invalid, ", ")))
 	}
 
 	return normalized, nil, nil
@@ -114,7 +116,7 @@ func (c *LabelCatalog) ValidateAndNormalizeLabels(inputLabels []string) ([]strin
 
 // PrintLabelsCatalog prints the catalog in a clean terminal format.
 func PrintLabelsCatalog(w io.Writer, catalog *LabelCatalog) {
-	fmt.Fprintln(w, "🏷️  Jira 표준 라벨 카탈로그 (Standard Labels Catalog)")
+	fmt.Fprintln(w, i18n.T("pkg.labels.title"))
 	fmt.Fprintln(w, "================================================================================")
 
 	order := []string{"project", "tech", "activity"}
@@ -134,13 +136,13 @@ func PrintLabelsCatalog(w io.Writer, catalog *LabelCatalog) {
 		}
 	}
 	fmt.Fprintln(w, "================================================================================")
-	fmt.Fprintln(w, "💡 티켓 생성 시 '-l \"<라벨1>,<라벨2>\"' 형태로 지정하세요 (예: -l \"DIVE,AI,Planning\")")
+	fmt.Fprintln(w, i18n.T("pkg.labels.hint"))
 }
 
 func printCategory(w io.Writer, key string, cat LabelCategory) {
 	fmt.Fprintf(w, "\n📁 [%s] %s\n", strings.ToUpper(key), cat.Name)
 	if cat.Description != "" {
-		fmt.Fprintf(w, "   설명: %s\n", cat.Description)
+		fmt.Fprintf(w, i18n.Sprintf("pkg.labels.desc_prefix", cat.Description))
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)

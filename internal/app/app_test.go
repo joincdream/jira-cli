@@ -22,7 +22,7 @@ func TestApp_Run_NoArgs(t *testing.T) {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
 
-	if !strings.Contains(stdout.String(), "Jira CLI - Personal & Team Task Management Tool") {
+	if !strings.Contains(stdout.String(), "Jira CLI - ") {
 		t.Errorf("expected usage output, got: %s", stdout.String())
 	}
 }
@@ -38,7 +38,7 @@ func TestApp_Run_Help(t *testing.T) {
 			if code != 0 {
 				t.Fatalf("expected exit code 0, got %d", code)
 			}
-			if !strings.Contains(stdout.String(), "Jira CLI - Personal & Team Task Management Tool") {
+			if !strings.Contains(stdout.String(), "Jira CLI - ") {
 				t.Errorf("expected usage in stdout, got: %s", stdout.String())
 			}
 		})
@@ -414,25 +414,25 @@ func TestApp_Run_E2E_CommandsWithMockServer(t *testing.T) {
 		},
 		{
 			name:       "create command with standard label",
-			args:       []string{"create", "New Issue", "-l", "DIVE", "--due", "2026-09-10"},
+			args:       []string{"create", "New Issue", "-d", "Issue description", "-l", "DIVE", "--due", "2026-09-10"},
 			wantExit:   0,
 			wantStdout: "KAN-2",
 		},
 		{
 			name:       "edit command",
-			args:       []string{"edit", "KAN-1", "-s", "Updated title"},
+			args:       []string{"--lang", "ko", "edit", "KAN-1", "-s", "Updated title"},
 			wantExit:   0,
 			wantStdout: "성공적으로 업데이트되었습니다",
 		},
 		{
 			name:       "move command",
-			args:       []string{"move", "KAN-1", "완료"},
+			args:       []string{"--lang", "ko", "move", "KAN-1", "완료"},
 			wantExit:   0,
 			wantStdout: "성공적으로 변경되었습니다",
 		},
 		{
 			name:       "comment command",
-			args:       []string{"comment", "KAN-1", "코멘트 내용"},
+			args:       []string{"--lang", "ko", "comment", "KAN-1", "코멘트 내용"},
 			wantExit:   0,
 			wantStdout: "코멘트가 등록되었습니다",
 		},
@@ -444,7 +444,7 @@ func TestApp_Run_E2E_CommandsWithMockServer(t *testing.T) {
 		},
 		{
 			name:       "delete command",
-			args:       []string{"delete", "KAN-1"},
+			args:       []string{"--lang", "ko", "delete", "KAN-1"},
 			wantExit:   0,
 			wantStdout: "성공적으로 삭제되었습니다",
 		},
@@ -463,3 +463,56 @@ func TestApp_Run_E2E_CommandsWithMockServer(t *testing.T) {
 		})
 	}
 }
+
+func TestApp_Run_I18N_LanguageSwitching(t *testing.T) {
+	app := NewDefaultApp()
+
+	// 1. English Help via --lang en
+	{
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"--lang", "en", "help"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected 0, got %d", code)
+		}
+		if !strings.Contains(stdout.String(), "Personal & Team Task Management Tool") {
+			t.Errorf("expected English usage, got: %s", stdout.String())
+		}
+	}
+
+	// 2. Korean Help via --lang ko
+	{
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"--lang=ko", "help"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected 0, got %d", code)
+		}
+		if !strings.Contains(stdout.String(), "개인 및 팀 업무 관리 도구") {
+			t.Errorf("expected Korean usage, got: %s", stdout.String())
+		}
+	}
+
+	// 3. English Guardrail Error: description missing
+	{
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"--lang", "en", "create", "New Feature Spec"}, &stdout, &stderr)
+		if code != 1 {
+			t.Fatalf("expected error exit code 1, got %d", code)
+		}
+		if !strings.Contains(stderr.String(), "Description (-d, --desc) is required") {
+			t.Errorf("expected English guardrail error, got: %s", stderr.String())
+		}
+	}
+
+	// 4. Korean Guardrail Error: description missing
+	{
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"--lang", "ko", "create", "New Feature Spec"}, &stdout, &stderr)
+		if code != 1 {
+			t.Fatalf("expected error exit code 1, got %d", code)
+		}
+		if !strings.Contains(stderr.String(), "상세 설명(-d, --desc)이 입력되지 않았습니다") {
+			t.Errorf("expected Korean guardrail error, got: %s", stderr.String())
+		}
+	}
+}
+
