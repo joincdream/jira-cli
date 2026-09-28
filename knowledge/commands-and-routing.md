@@ -10,9 +10,10 @@ tags:
   - markdown
   - json
 status: stable
-timestamp: 2026-09-28T10:25:00+09:00
+timestamp: 2026-09-28T17:15:00+09:00
 sources:
   - internal/app/commands_issue.go
+  - internal/app/commands_report.go
   - internal/app/commands_meta.go
   - internal/app/app.go
   - internal/i18n/i18n.go
@@ -156,5 +157,22 @@ jira list --due week
 # 머신 리더블 마크다운 포맷과 결합
 jira list --all --due '<=today' --md
 ```
+
+---
+
+## 📊 7. 주간 업무 브리핑 및 프로젝트 진척 리포트 (`jira report`)
+
+관리자(PM/PdM) 및 개발 리드가 전체 프로젝트 진척률, 지연/위험 티켓, 담당자별 워크로드를 한눈에 파악하고 회의록이나 협업 툴(Slack/Confluence)에 즉시 공유할 수 있도록 지원하는 집계 리포팅 엔진입니다:
+
+* **실행 모드**:
+  * 기본 뷰: 깔끔한 텍스트 카드 포맷 (이모지 최소화, 전문적 가독성 확보)
+  * `--md`: 모든 섹션(종합 요약, 위험/지연 작업, 완료 성과, 진행 중 작업, 담당자 워크로드, 프로젝트별 현황)을 **구조화된 Markdown Table**로 출력
+  * `--json`: AI Agent 및 파이프라인 연계용 정형 JSON 데이터
+* **지원 플래그**:
+  * `--all`, `-A`: 전사 모든 프로젝트 대상 집계
+  * `-p`, `--project <KEY>`: 특정 프로젝트 지정
+  * `-a`, `--assignee <USER>`: 특정 담당자 필터 (`me`, `none`, 또는 사용자명)
+  * `--period <week|month|all>`: 집계 대상 기간 (기본값: `week`)
+
 
 

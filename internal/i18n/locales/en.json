@@ -132,5 +132,11 @@
   "pkg.client.err_mkdir": "Failed to create directory (%s): %w",
   "pkg.client.err_read_config": "Failed to read configuration file (%s): %w",
   "pkg.client.err_profile_not_found": "Jira profile [%s] not found (%s).\nConfigure the profile using 'jira configure --profile %s'.",
-  "pkg.client.err_credentials_missing": "Jira credentials missing (profile: [%s], file: %s).\nConfigure them using 'jira configure --profile %s'."
+  "pkg.client.err_credentials_missing": "Jira credentials missing (profile: [%s], file: %s).\nConfigure them using 'jira configure --profile %s'.",
+  "cmd.report.desc": "Generate weekly briefing and project progress summary report.",
+  "cmd.report.usage": "Usage: jira report [options]\nGenerate weekly briefing and project progress summary report.\n\nOptions:",
+  "cmd.report.flag_all": "Generate report across all projects",
+  "cmd.report.flag_project": "Target project key for report",
+  "cmd.report.flag_assignee": "Filter by assignee (supports me)",
+  "cmd.report.flag_period": "Aggregation period (week, month, all)"
 }

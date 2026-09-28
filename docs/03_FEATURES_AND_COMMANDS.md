@@ -200,3 +200,31 @@
   jira --profile cloit --lang ko list
   ```
 
+---
+
+### 11. `jira report` (주간 업무 브리핑 및 프로젝트 진척 리포트)
+- **설명**: 현재 프로젝트 또는 전사 프로젝트의 이슈 데이터를 집계하여 진척률, 위험/지연 티켓, 담당자별 워크로드, 프로젝트별 진행률을 요약한 보고서를 생성합니다.
+- **별칭(Aliases)**: `digest`, `summary`, `briefing`
+- **플래그**:
+  - `--all`, `-A` : 전사 모든 프로젝트를 대상으로 리포트 생성
+  - `-p`, `--project <KEY>` : 특정 프로젝트 대상 지정
+  - `-a`, `--assignee <USER>` : 특정 담당자 필터 (`me`, `none`, 또는 사용자명)
+  - `--period <week|month|all>` : 집계 기간 지정 (기본값: `week`)
+  - `--md` : 주간 회의록, Slack, Confluence 공유용 표준 마크다운 표 출력
+  - `--json` : AI Agent 및 파이프라인 연계용 정형 JSON 출력
+- **예시**:
+  ```bash
+  # 현재 프로젝트 주간 브리핑 (터미널 뷰)
+  jira report
+
+  # 전사 모든 프로젝트 횡단 주간 리포트 (회의록/슬랙용 Markdown 테이블)
+  jira report --all --md
+
+  # 내 담당 업무 주간 리포트
+  jira report --assignee me --md
+
+  # 이번 달 전사 리포트 JSON 출력 (AI 분석용)
+  jira report --all --period month --json
+  ```
+
+

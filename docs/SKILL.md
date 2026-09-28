@@ -129,7 +129,24 @@ jira comment JC-10 "단위 테스트 100% 통과 및 바이너리 배포 완료�
 
 ---
 
-### 7) 프로필 및 설정 관리 (`jira configure`)
+### 7) 주간 브리핑 및 프로젝트 진척 리포트 (`jira report`)
+```bash
+# 현재 프로젝트 주간 브리핑
+jira report
+
+# 전사 모든 프로젝트 대상 주간 리포트 (Markdown 표 출력 -> 회의록/Slack/AI 주입용)
+jira report --all --md
+
+# 내 담당 작업 요약 리포트
+jira report --assignee me --md
+
+# 이번 달 전사 리포트 (JSON)
+jira report --all --period month --json
+```
+
+---
+
+### 8) 프로필 및 설정 관리 (`jira configure`)
 ```bash
 # 프로필 목록 및 상속 관계 조회
 jira configure list

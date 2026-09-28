@@ -132,5 +132,11 @@
   "pkg.client.err_mkdir": "디렉토리 생성 실패 (%s): %w",
   "pkg.client.err_read_config": "설정 파일 읽기 실패 (%s): %w",
   "pkg.client.err_profile_not_found": "Jira 프로필 [%s]을(를) 찾을 수 없습니다 (%s).\n'jira configure --profile %s' 명령어로 프로필을 설정하세요.",
-  "pkg.client.err_credentials_missing": "Jira 인증 정보가 누락되었습니다 (프로필: [%s], 파일: %s).\n'jira configure --profile %s' 명령어로 설정하세요."
+  "pkg.client.err_credentials_missing": "Jira 인증 정보가 누락되었습니다 (프로필: [%s], 파일: %s).\n'jira configure --profile %s' 명령어로 설정하세요.",
+  "cmd.report.desc": "주간 업무 브리핑 및 프로젝트 진척 현황 요약 리포트를 생성합니다.",
+  "cmd.report.usage": "사용법: jira report [options]\n주간 업무 브리핑 및 프로젝트 요약 리포트를 생성합니다.\n\n옵션:",
+  "cmd.report.flag_all": "전사 모든 프로젝트를 대상으로 리포트 생성",
+  "cmd.report.flag_project": "리포트 대상 프로젝트 키",
+  "cmd.report.flag_assignee": "특정 담당자 필터 (me 지원)",
+  "cmd.report.flag_period": "집계 대상 기간 (week, month, all)"
 }

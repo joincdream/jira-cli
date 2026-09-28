@@ -102,3 +102,25 @@ verified: true
 - **검증 소스**:
   - `internal/app/query_builder_test.go`, `internal/app/commands_issue_test.go`, `internal/i18n/i18n_test.go` (전체 패키지 100% Pass)
 
+---
+
+## 2026-09-28 (JC-11: Weekly Progress & Briefing Report Command)
+- **작업 티켓**: [JC-11](https://joincdream.atlassian.net/browse/JC-11)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. 주간 업무 브리핑 및 프로젝트 진척 리포팅 엔진 구현 (`internal/app/commands_report.go`):
+     - `ReportCommand`: `--all`/`-A`, `-p`/`--project`, `-a`/`--assignee`, `--period week|month|all`, `--md`, `--json` 지원.
+     - `buildReportJQL`: 기간(주간 `startOfWeek()`, 월간 `startOfMonth()`) 및 완료/열린 이슈를 결합하는 JQL 자동 합성.
+     - `aggregateReport`: 총 이슈, 완료율(%), 건강도(`NORMAL`/`WARNING`/`CRITICAL`), Overdue(지연 일수 산출), Due Soon(3일 내 마감), 담당자별 워크로드 및 프로젝트별 진행률 바 산출.
+  2. 가독성 개선 및 전 섹션 Markdown Table 포맷터:
+     - 시각적 노이즈를 유발하는 이모지를 전면 배제하고 단정하고 전문적인 텍스트 배지 적용.
+     - 종합 요약, 위험/지연 작업, 완료 성과, 진행 중 작업, 담당자 워크로드, 프로젝트별 현황 전 섹션을 구조화된 Markdown Table로 출력.
+  3. 라우터 및 다국어 지원:
+     - `internal/app/app.go`: `report` 명령어 등록 및 사용법 가이드 갱신.
+     - `internal/i18n/locales/{en,ko}.json`: `cmd.report.*` 번역 등록.
+  4. 테스트 스위트 확장:
+     - `internal/app/commands_report_test.go`: JQL 빌더, 집계 로직, 터미널/Markdown/JSON 출력 단위 및 Mock E2E 100% Pass.
+- **검증 소스**:
+  - `internal/app/commands_report_test.go`, `make test` (단위 테스트 100% Pass 및 코드 복잡도 `gocyclo <= 40`, `gocognit <= 70` 준수)
+
+

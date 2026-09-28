@@ -80,6 +80,7 @@ func (a *App) registerBuiltinCommands() {
 	a.Register(NewCommentCommand(a.clientProvider))
 	a.Register(NewTransitionsCommand(a.clientProvider))
 	a.Register(NewDeleteCommand(a.clientProvider))
+	a.Register(NewReportCommand(a.clientProvider))
 }
 
 // PrintUsage outputs the usage message to the specified writer based on active language.
@@ -104,6 +105,7 @@ func (a *App) PrintUsage(w io.Writer) {
   comment <KEY> <MESSAGE>        이슈에 코멘트 등록
   transitions <KEY>              해당 이슈에서 전이 가능한 워크플로 상태 목록 조회
   delete <KEY>                   이슈 삭제 (별칭: rm)
+  report [flags]                 주간 업무 브리핑 및 프로젝트 진척 리포트 생성 (별칭: digest, summary)
   labels                         표준 라벨 카탈로그 및 가이드 조회 (별칭: tags)
   configure [--profile <name>]   대화형 Jira 프로필 설정 (~/.config/jira/config, 별칭: config)
   configure list                 등록된 Jira 프로필 목록 조회
@@ -179,6 +181,7 @@ Commands:
   comment <KEY> <MESSAGE>        Add a comment to an issue
   transitions <KEY>              List available workflow transitions for an issue
   delete <KEY>                   Delete an issue permanently (alias: rm)
+  report [flags]                 Generate progress and weekly briefing report (alias: digest, summary)
   labels                         View standard labels catalog and guide (alias: tags)
   configure [--profile <name>]   Interactive configuration wizard (~/.config/jira/config, alias: config)
   configure list                 List configured Jira profiles
