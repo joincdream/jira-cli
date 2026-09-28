@@ -61,21 +61,25 @@ email = user@cloit.com
 api_token = ATATT3xFfGF0...ANOTHER_TOKEN...
 project_key = CLOIT
 
-[personal]
-instance_url = https://personal.atlassian.net
-email = me@gmail.com
-api_token = ATATT3xFfGF0...PERSONAL_TOKEN...
-project_key = MYPROJ
+# [default]의 URL/Email/Token을 자동 상속받는 서브 프로젝트
+[jira-cli]
+project_key = JC
+
+# 다른 테넌트 프로필을 명시적으로 상속받는 프로필
+[cloit-mobile]
+source_profile = cloit
+project_key = MOB
 ```
 
 ### 필드 명세
 
 | 필드 | 필수 여부 | 설명 | 기본값 |
 | :--- | :---: | :--- | :--- |
-| `instance_url` | **필수** | Atlassian Jira Cloud 주소 (마지막 슬래시 `/` 자동 제거됨) | - |
-| `email` | **필수** | Jira 계정 이메일 주소 | - |
-| `api_token` | **필수** | Atlassian API 토큰 (Basic Auth 암호로 사용됨) | - |
+| `instance_url` | 필수 (상속 가능) | Atlassian Jira Cloud 주소 (마지막 슬래시 `/` 자동 제거됨) | - |
+| `email` | 필수 (상속 가능) | Jira 계정 이메일 주소 | - |
+| `api_token` | 필수 (상속 가능) | Atlassian API 토큰 (Basic Auth 암호로 사용됨) | - |
 | `project_key` | 선택 | 작업을 생성하거나 목록을 조회할 기본 프로젝트 키 | `KAN` |
+| `source_profile` | 선택 | 인증 키를 상속받을 부모 프로필 이름 (생략 시 `default` 자동 상속) | `default` |
 | `language` | 선택 | 프로필별 기본 UI 언어 (`ko`, `en`) | 시스템 로케일 또는 `en` |
 
 ---

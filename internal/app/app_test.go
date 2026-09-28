@@ -86,6 +86,51 @@ func TestConfigureCommand(t *testing.T) {
 			t.Errorf("expected profile [myprofile] in list, got: %s", listOut.String())
 		}
 	})
+
+	t.Run("configure with inheritance", func(t *testing.T) {
+		// Inherit from myprofile: "Y" -> "myprofile" -> "CHILD_PROJ"
+		inheritInput := "Y\nmyprofile\nCHILD_PROJ\n"
+		childCmd := NewConfigureCommandWithPath(strings.NewReader(inheritInput), configPath)
+
+		var childOut, childErr bytes.Buffer
+		err := childCmd.Execute(context.Background(), []string{"--profile", "child"}, &childOut, &childErr)
+		if err != nil {
+			t.Fatalf("expected child configure to succeed, got: %v", err)
+		}
+
+		childSaved, found, err := pkg.ReadProfileConfig(configPath, "child")
+		if err != nil || !found {
+			t.Fatalf("failed to read child profile: %v", err)
+		}
+		if childSaved.SourceProfile != "myprofile" {
+			t.Errorf("expected SourceProfile 'myprofile', got %q", childSaved.SourceProfile)
+		}
+		if childSaved.ProjectKey != "CHILD_PROJ" {
+			t.Errorf("expected ProjectKey 'CHILD_PROJ', got %q", childSaved.ProjectKey)
+		}
+
+		// Verify resolved inheritance
+		resolved, err := pkg.LoadConfigFileForProfile(configPath, "child")
+		if err != nil {
+			t.Fatalf("failed to load child profile via inheritance: %v", err)
+		}
+		if resolved.InstanceURL != "https://custom.atlassian.net" {
+			t.Errorf("expected inherited URL, got %s", resolved.InstanceURL)
+		}
+		if resolved.APIToken != "secret_token_abc" {
+			t.Errorf("expected inherited token, got %s", resolved.APIToken)
+		}
+		if resolved.ProjectKey != "CHILD_PROJ" {
+			t.Errorf("expected child project key, got %s", resolved.ProjectKey)
+		}
+
+		// Verify list output shows inherits marker
+		var listOut, listErr bytes.Buffer
+		_ = childCmd.Execute(context.Background(), []string{"list"}, &listOut, &listErr)
+		if !strings.Contains(listOut.String(), "inherits: myprofile") {
+			t.Errorf("expected list to show inherits: myprofile, got: %s", listOut.String())
+		}
+	})
 }
 
 func TestApp_ExtractProfileFlag(t *testing.T) {

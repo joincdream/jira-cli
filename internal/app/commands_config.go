@@ -104,6 +104,63 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 	fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.target_file", targetPath))
 	fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.target_profile", profile))
 
+	existingProfiles, _ := pkg.ListProfiles(targetPath)
+	hasBaseProfiles := false
+	for _, p := range existingProfiles {
+		if !strings.EqualFold(p, profile) {
+			hasBaseProfiles = true
+			break
+		}
+	}
+
+	// If configuring a non-default profile and other profiles exist, ask if user wants to inherit credentials
+	if !strings.EqualFold(profile, "default") && hasBaseProfiles {
+		defaultInherit := "Y"
+		if existing.InstanceURL != "" && existing.SourceProfile == "" {
+			defaultInherit = "N"
+		}
+
+		inheritChoice, err := prompt("inherit", i18n.T("cmd.configure.prompt_inherit"), defaultInherit, "")
+		if err != nil {
+			return err
+		}
+
+		if strings.EqualFold(inheritChoice, "y") || strings.EqualFold(inheritChoice, "yes") {
+			defaultSource := existing.SourceProfile
+			if defaultSource == "" {
+				defaultSource = "default"
+			}
+			sourceProf, err := prompt("source_profile", i18n.T("cmd.configure.prompt_source_profile"), defaultSource, "")
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(stdout, "%s", i18n.Sprintf("cmd.configure.skip_credentials_notice", sourceProf))
+
+			defaultKey := existing.ProjectKey
+			if defaultKey == "" {
+				defaultKey = "KAN"
+			}
+			projectKey, err := prompt("project_key", i18n.T("cmd.configure.prompt_project_key"), defaultKey, "")
+			if err != nil {
+				return err
+			}
+
+			cfg := pkg.Config{
+				SourceProfile: sourceProf,
+				ProjectKey:    projectKey,
+				Language:      existing.Language,
+			}
+
+			if err := pkg.WriteProfileConfig(targetPath, profile, cfg); err != nil {
+				return fmt.Errorf("%s", i18n.Sprintf("cmd.configure.err_save", targetPath, err))
+			}
+
+			fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.save_success", targetPath, profile))
+			return nil
+		}
+	}
+
 	defaultURL := existing.InstanceURL
 	if defaultURL == "" {
 		defaultURL = "https://joincdream.atlassian.net"
@@ -168,8 +225,12 @@ func (c *ConfigureCommand) listProfiles(configPath string, stdout io.Writer) err
 			marker = "* "
 		}
 		summary := ""
-		if cfg.InstanceURL != "" || cfg.Email != "" {
-			summary = fmt.Sprintf(" (%s, %s)", cfg.InstanceURL, cfg.Email)
+		if cfg.SourceProfile != "" {
+			summary = fmt.Sprintf(" (inherits: %s, project: %s)", cfg.SourceProfile, cfg.ProjectKey)
+		} else if cfg.InstanceURL == "" && cfg.APIToken == "" && cfg.ProjectKey != "" {
+			summary = fmt.Sprintf(" (inherits: default, project: %s)", cfg.ProjectKey)
+		} else if cfg.InstanceURL != "" || cfg.Email != "" {
+			summary = fmt.Sprintf(" (%s, %s, project: %s)", cfg.InstanceURL, cfg.Email, cfg.ProjectKey)
 		}
 		if marker == "* " {
 			fmt.Fprintf(stdout, "%s[%s]%s %s\n", marker, p, summary, i18n.T("cmd.configure.active_profile_marker"))

@@ -18,11 +18,12 @@ import (
 
 // Config holds the Jira connection parameters.
 type Config struct {
-	InstanceURL string
-	Email       string
-	APIToken    string
-	ProjectKey  string
-	Language    string
+	InstanceURL   string
+	Email         string
+	APIToken      string
+	ProjectKey    string
+	Language      string
+	SourceProfile string
 }
 
 // Client is a Jira API client.
@@ -161,6 +162,8 @@ func ReadProfileConfig(configPath, profile string) (Config, bool, error) {
 					cfg.APIToken = val
 				case "project_key":
 					cfg.ProjectKey = val
+				case "source_profile":
+					cfg.SourceProfile = val
 				case "language", "lang":
 					cfg.Language = val
 				}
@@ -268,21 +271,107 @@ func WriteProfileConfig(configPath, profile string, cfg Config) error {
 }
 
 func formatProfileSection(profile string, cfg Config) string {
-	projectKey := cfg.ProjectKey
-	if projectKey == "" {
-		projectKey = "KAN"
+	res := fmt.Sprintf("[%s]", strings.TrimSpace(profile))
+	if cfg.SourceProfile != "" {
+		res += fmt.Sprintf("\nsource_profile = %s", cfg.SourceProfile)
 	}
-	res := fmt.Sprintf("[%s]\ninstance_url = %s\nemail = %s\napi_token = %s\nproject_key = %s",
-		strings.TrimSpace(profile),
-		strings.TrimRight(cfg.InstanceURL, "/"),
-		cfg.Email,
-		cfg.APIToken,
-		projectKey,
-	)
+	if cfg.InstanceURL != "" {
+		res += fmt.Sprintf("\ninstance_url = %s", strings.TrimRight(cfg.InstanceURL, "/"))
+	}
+	if cfg.Email != "" {
+		res += fmt.Sprintf("\nemail = %s", cfg.Email)
+	}
+	if cfg.APIToken != "" {
+		res += fmt.Sprintf("\napi_token = %s", cfg.APIToken)
+	}
+	projectKey := cfg.ProjectKey
+	if projectKey != "" {
+		res += fmt.Sprintf("\nproject_key = %s", projectKey)
+	} else if cfg.SourceProfile == "" {
+		res += "\nproject_key = KAN"
+	}
 	if cfg.Language != "" {
 		res += fmt.Sprintf("\nlanguage = %s", cfg.Language)
 	}
 	return res
+}
+
+// ResolveProfileInheritance resolves profile configuration taking into account
+// explicit inheritance (via source_profile) and implicit inheritance (fallback to [default]).
+func ResolveProfileInheritance(configPath, profile string) (Config, bool, error) {
+	return resolveProfileInheritance(configPath, profile, nil)
+}
+
+func resolveProfileInheritance(configPath, profile string, visited []string) (Config, bool, error) {
+	normProfile := strings.TrimSpace(profile)
+	if normProfile == "" {
+		return Config{}, false, nil
+	}
+
+	// Check circular inheritance
+	for _, v := range visited {
+		if strings.EqualFold(v, normProfile) {
+			chain := append(visited, normProfile)
+			return Config{}, true, fmt.Errorf("프로필 상속 순환 참조가 감지되었습니다: %s", strings.Join(chain, " -> "))
+		}
+	}
+
+	if len(visited) >= 5 {
+		chain := append(visited, normProfile)
+		return Config{}, true, fmt.Errorf("프로필 상속 최대 깊이(5)를 초과했습니다: %s", strings.Join(chain, " -> "))
+	}
+
+	cfg, found, err := ReadProfileConfig(configPath, normProfile)
+	if err != nil {
+		return Config{}, false, err
+	}
+	if !found {
+		return Config{}, false, nil
+	}
+
+	// Determine base profile for inheritance
+	baseProfile := strings.TrimSpace(cfg.SourceProfile)
+	isExplicit := baseProfile != ""
+
+	// Implicit fallback to [default] if not default itself and missing essential credentials
+	if !isExplicit && !strings.EqualFold(normProfile, "default") {
+		if cfg.InstanceURL == "" || cfg.Email == "" || cfg.APIToken == "" {
+			baseProfile = "default"
+		}
+	}
+
+	if baseProfile != "" {
+		newVisited := append(visited, normProfile)
+		baseCfg, baseFound, err := resolveProfileInheritance(configPath, baseProfile, newVisited)
+		if err != nil {
+			return Config{}, true, err
+		}
+		if !baseFound {
+			if isExplicit {
+				return Config{}, true, fmt.Errorf("상속 대상 프로필 [%s]을(를) 찾을 수 없습니다", baseProfile)
+			}
+			// Implicit default fallback not found: proceed with current cfg
+		} else {
+			// Merge fields: base fills in empty child fields
+			if cfg.InstanceURL == "" {
+				cfg.InstanceURL = baseCfg.InstanceURL
+			}
+			if cfg.Email == "" {
+				cfg.Email = baseCfg.Email
+			}
+			if cfg.APIToken == "" {
+				cfg.APIToken = baseCfg.APIToken
+			}
+			if cfg.ProjectKey == "" {
+				cfg.ProjectKey = baseCfg.ProjectKey
+			}
+			if cfg.Language == "" {
+				cfg.Language = baseCfg.Language
+			}
+		}
+	}
+
+	return cfg, true, nil
 }
 
 // LoadConfig reads configuration for the active profile from ~/.config/jira/config.
@@ -301,7 +390,7 @@ func LoadConfigForProfile(profile string) (Config, error) {
 
 // LoadConfigFileForProfile loads configuration for a specified profile from a specific file path.
 func LoadConfigFileForProfile(configPath, profile string) (Config, error) {
-	cfg, found, err := ReadProfileConfig(configPath, profile)
+	cfg, found, err := ResolveProfileInheritance(configPath, profile)
 	if err != nil {
 		return Config{}, fmt.Errorf("설정 파일 읽기 실패 (%s): %w", configPath, err)
 	}

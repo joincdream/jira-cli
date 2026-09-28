@@ -7,7 +7,7 @@ tags:
   - log
   - changelog
 status: stable
-timestamp: 2026-09-20T18:00:00+09:00
+timestamp: 2026-09-28T10:05:00+09:00
 verified: true
 ---
 
@@ -62,6 +62,43 @@ verified: true
   4. 테스트 스위트 확장:
      - `internal/i18n/i18n_test.go`: 우선순위 해석, 번역 정확성, 키 누락 안전성, en/ko 127개 키 전수 일치성 검증.
      - `internal/app/app_test.go`: `--lang en`, `--lang=ko` 언어 전환 및 에러 메시지 검증.
+---
+
+## 2026-09-28 (JC-9: AWS CLI-Style Profile Inheritance & Default Fallback)
+- **작업 티켓**: [JC-9](https://joincdream.atlassian.net/browse/JC-9)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. AWS CLI 스타일 프로필 상속 엔진 구현 (`pkg/client.go`):
+     - `Config` 구조체에 `SourceProfile` 필드 추가 및 `ReadProfileConfig` 파싱 지원.
+     - 암시적 상속: 서브 프로필에 URL/Email/Token 누락 시 `[default]` 프로필 자동 Fallback.
+     - 명시적 상속: `source_profile = <base>` 키를 통한 임의의 테넌트 프로필 상속 지원.
+     - 다단계 상속 체인 전파 및 자식 프로필 필드별 부분 오버라이드 지원.
+     - 순환 참조(`A -> B -> A`) 감지 및 최대 깊이(5단계) 초과 차단 가드레일 탑재.
+  2. 대화형 설정 마법사 및 프로필 목록 확장 (`internal/app/commands_config.go`):
+     - 기존 프로필 존재 시 신규 프로필 생성 프롬프트에서 인증 정보 상속 여부 질의 및 URL/토큰 입력 생략 지원.
+     - `jira configure list` 출력 시 상속 관계(`(inherits: <profile>, project: <key>)`) 명시.
+  3. i18n 메시지 카탈로그 등록 (`internal/i18n/locales/{en,ko}.json`):
+     - `cmd.configure.prompt_inherit`, `prompt_source_profile`, `skip_credentials_notice` 한/영 등록.
+---
+
+## 2026-09-28 (JC-10: Generalized Query Filter Flags for jira list)
+- **작업 티켓**: [JC-10](https://joincdream.atlassian.net/browse/JC-10)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. JQL 쿼리 빌더 유틸리티 구축 (`internal/app/query_builder.go`):
+     - 특정 시점 하드코딩 안티패턴을 배제하고 직교적(Orthogonal) 범용 필터 플래그 합성 엔진 구현.
+     - `--all`, `-A`: 활성 프로필의 단일 `project_key` 제한을 해제하고 전체 테넌트 스코프로 확장.
+     - `--due <expr>`: 상대적/절대적 마감일 표현식(`today`, `<=today`, `tomorrow`, `<=tomorrow`, `week`, `YYYY-MM-DD`, `<=YYYY-MM-DD`) 파서 및 로컬 유효성 검증.
+     - `--status <status>`: 상태 필터 매핑 (`open` [기본값: statusCategory != Done], `done`, `all`, 특정 상태명).
+     - `--assignee <user>`, `-a`: 담당자 필터 매핑 (`me`, `none`, 사용자 이메일/ID).
+  2. `ListCommand` 플래그 연동 (`internal/app/commands_issue.go`):
+     - `parseFlagsAndPositional`을 적용하여 옵션과 위치 인자의 순서 독립성 지원.
+     - 수동 JQL 직접 입력 시 플래그 빌더보다 우선 적용하여 100% 하위 호환성 유지.
+  3. i18n 메시지 카탈로그 등록 (`internal/i18n/locales/{en,ko}.json`):
+     - `cmd.list.usage`, `cmd.list.flag_all`, `cmd.list.flag_due`, `cmd.list.flag_status`, `cmd.list.flag_assignee` 한/영 등록.
+  4. 테스트 스위트 확장:
+     - `internal/app/query_builder_test.go`: `TestBuildFilterJQL` 10종 서브테스트 100% Pass.
+     - `internal/app/commands_issue_test.go`: `TestListCommand_FilterFlags` Mock 서버 E2E 100% Pass.
 - **검증 소스**:
-  - `internal/i18n/i18n_test.go`, `internal/app/app_test.go`, `pkg/format_test.go` (전체 패키지 100% Pass)
+  - `internal/app/query_builder_test.go`, `internal/app/commands_issue_test.go`, `internal/i18n/i18n_test.go` (전체 패키지 100% Pass)
 

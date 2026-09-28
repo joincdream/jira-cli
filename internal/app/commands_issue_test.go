@@ -322,3 +322,93 @@ func TestJC8_CLI_Parsing_And_Guardrails(t *testing.T) {
 		}
 	})
 }
+
+func TestListCommand_FilterFlags(t *testing.T) {
+	var capturedJQL string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/rest/api/3/search/jql") {
+			capturedJQL = r.URL.Query().Get("jql")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"issues": []}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	clientProvider := func() (*pkg.Client, error) {
+		cfg := pkg.Config{
+			InstanceURL: server.URL,
+			Email:       "test@example.com",
+			APIToken:    "token",
+			ProjectKey:  "JC",
+		}
+		return pkg.NewClientWithConfig(cfg), nil
+	}
+
+	mockCatalogLoader := func() (*pkg.LabelCatalog, error) {
+		return &pkg.LabelCatalog{
+			Version:    "1.0.0",
+			Categories: map[string]pkg.LabelCategory{},
+		}, nil
+	}
+
+	app := NewApp("1.5.0", clientProvider, mockCatalogLoader)
+
+	t.Run("list with --all and --due <=today", func(t *testing.T) {
+		capturedJQL = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"list", "--all", "--due", "<=today"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if strings.Contains(capturedJQL, "project =") {
+			t.Errorf("expected no project clause with --all, got %q", capturedJQL)
+		}
+		if !strings.Contains(capturedJQL, "duedate <= endOfDay()") {
+			t.Errorf("expected duedate clause in JQL, got %q", capturedJQL)
+		}
+		if !strings.Contains(capturedJQL, "statusCategory != Done") {
+			t.Errorf("expected default open status in JQL, got %q", capturedJQL)
+		}
+	})
+
+	t.Run("list with --assignee me and default project", func(t *testing.T) {
+		capturedJQL = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"list", "--assignee", "me"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if !strings.Contains(capturedJQL, "project = JC") {
+			t.Errorf("expected project = JC, got %q", capturedJQL)
+		}
+		if !strings.Contains(capturedJQL, "assignee = currentUser()") {
+			t.Errorf("expected assignee = currentUser(), got %q", capturedJQL)
+		}
+	})
+
+	t.Run("list with invalid due date returns error", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"list", "--due", "not-a-date"}, &stdout, &stderr)
+		if code != 1 {
+			t.Fatalf("expected code 1 for invalid due filter, got %d", code)
+		}
+		if !strings.Contains(stderr.String(), "지원하지 않는 마감일(--due) 형식") {
+			t.Errorf("expected error in stderr, got: %s", stderr.String())
+		}
+	})
+
+	t.Run("raw JQL positional argument takes precedence", func(t *testing.T) {
+		capturedJQL = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"list", "project = CUSTOM_PROJ"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if capturedJQL != "project = CUSTOM_PROJ" {
+			t.Errorf("expected raw JQL 'project = CUSTOM_PROJ', got %q", capturedJQL)
+		}
+	})
+}

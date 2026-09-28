@@ -73,12 +73,37 @@ func parseOutputFormat(args []string) (string, []string, error) {
 }
 
 func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	if isHelpRequested(args) {
+	fs := flag.NewFlagSet("list", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
+	var all bool
+	var due, status, assignee string
+
+	fs.BoolVar(&all, "all", false, i18n.T("cmd.list.flag_all"))
+	fs.BoolVar(&all, "A", false, i18n.T("cmd.list.flag_all"))
+	fs.StringVar(&due, "due", "", i18n.T("cmd.list.flag_due"))
+	fs.StringVar(&status, "status", "", i18n.T("cmd.list.flag_status"))
+	fs.StringVar(&assignee, "assignee", "", i18n.T("cmd.list.flag_assignee"))
+	fs.StringVar(&assignee, "a", "", i18n.T("cmd.list.flag_assignee"))
+
+	fs.Usage = func() {
 		fmt.Fprintln(stdout, i18n.T("cmd.list.usage"))
+		fs.SetOutput(stdout)
+		fs.PrintDefaults()
+		fs.SetOutput(stderr)
+	}
+
+	if isHelpRequested(args) {
+		fs.Usage()
 		return nil
 	}
 
 	format, cleanArgs, err := parseOutputFormat(args)
+	if err != nil {
+		return err
+	}
+
+	posArgs, err := parseFlagsAndPositional(fs, cleanArgs)
 	if err != nil {
 		return err
 	}
@@ -88,9 +113,25 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
-	jql := ""
-	if len(cleanArgs) > 0 {
-		jql = strings.Join(cleanArgs, " ")
+	var jql string
+	if len(posArgs) > 0 {
+		var parts []string
+		for _, pa := range posArgs {
+			parts = append(parts, pa.Value)
+		}
+		jql = strings.Join(parts, " ")
+	} else {
+		filterOpts := ListFilterOptions{
+			All:      all,
+			Due:      due,
+			Status:   status,
+			Assignee: assignee,
+		}
+		builtJQL, err := BuildFilterJQL(client.GetConfig().ProjectKey, filterOpts)
+		if err != nil {
+			return err
+		}
+		jql = builtJQL
 	}
 
 	issues, err := client.ListIssues(ctx, jql)

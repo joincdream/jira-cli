@@ -10,7 +10,7 @@ tags:
   - markdown
   - json
 status: stable
-timestamp: 2026-09-23T11:25:00+09:00
+timestamp: 2026-09-28T10:25:00+09:00
 sources:
   - internal/app/commands_issue.go
   - internal/app/commands_meta.go
@@ -128,4 +128,33 @@ jira --lang ko list --md
 # 환경 변수로 기본 언어 고정
 export JIRA_LANG=ko
 ```
+
+---
+
+## 🔍 6. 이슈 목록 범용 필터 플래그 (`internal/app/query_builder.go`)
+
+Jira 관리자 및 실무자가 복잡한 JQL을 직접 작성하지 않고도 원하는 조건의 티켓을 빠르게 검색할 수 있도록 직교적(Orthogonal)인 범용 필터 플래그를 제공합니다:
+
+| 플래그 | 형태 | 허용 값 예시 | 변환되는 JQL 표현식 |
+| :--- | :--- | :--- | :--- |
+| **`--all`, `-A`** | bool | `true` / `false` | 기본 `project = ...` 제한을 해제하고 전체 테넌트 범위로 조회 |
+| **`--due`** | string | `today`<br>`<=today`<br>`tomorrow`<br>`<=tomorrow`<br>`week`<br>`YYYY-MM-DD`<br>`<=YYYY-MM-DD` | `duedate = endOfDay()`<br>`duedate <= endOfDay()`<br>`duedate = endOfDay('1d')`<br>`duedate <= endOfDay('1d')`<br>`duedate <= endOfWeek()`<br>`duedate = "2026-10-15"`<br>`duedate <= "2026-10-15"` |
+| **`--status`** | string | `open` (기본값)<br>`done`<br>`all` (또는 `*`)<br>특정 상태명 | `statusCategory != Done`<br>`statusCategory = Done`<br>*(상태 조건 생략)*<br>`status = "<value>"` |
+| **`--assignee`, `-a`** | string | `me`<br>`none`<br>특정 사용자/이메일 | `assignee = currentUser()`<br>`assignee is EMPTY`<br>`assignee = "<value>"` |
+
+### 사용 예시
+```bash
+# 전체 프로젝트를 통틀어 오늘까지 해야 할 일 (미완료, 연체 포함)
+jira list --all --due '<=today'
+
+# 전체 프로젝트에서 내게 할당된 열린 티켓 목록
+jira list --all --assignee me
+
+# 현재 프로젝트에서 이번 주 마감인 티켓
+jira list --due week
+
+# 머신 리더블 마크다운 포맷과 결합
+jira list --all --due '<=today' --md
+```
+
 

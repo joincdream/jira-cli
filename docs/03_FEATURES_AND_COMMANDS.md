@@ -26,18 +26,34 @@
 ## 🔍 상세 명령어 명세
 
 ### 1. `list` (이슈 목록 조회)
-- **문법**: `jira list [JQL_QUERY]`
-- **인수**:
-  - `JQL_QUERY` (선택): Jira Query Language 문자열. 생략 시 기본값은 `project = <PROJECT_KEY> ORDER BY created DESC`.
+- **문법**: `jira list [JQL_QUERY] [flags]`
+- **인수 및 플래그**:
+  - `JQL_QUERY` (선택): Jira Query Language 직접 입력 (입력 시 아래 플래그보다 우선).
+  - `--all`, `-A` (선택): 활성 프로필의 프로젝트 제한을 해제하고 전체 테넌트 범위로 조회.
+  - `--due <EXPR>` (선택): 마감일 필터 (`today`, `<=today`, `tomorrow`, `<=tomorrow`, `week`, `YYYY-MM-DD`, `<=YYYY-MM-DD`).
+  - `--status <STATUS>` (선택): 상태 필터 (`open` [기본값: 미완료], `done`, `all` [전체], 또는 특정 상태명).
+  - `--assignee <USER>`, `-a` (선택): 담당자 필터 (`me`, `none`, 또는 사용자 이메일/ID).
+  - `--md`, `--json`, `-o table|json|md` (선택): 출력 서식 지정.
 - **처리 흐름**:
-  1. 클라이언트 초기화 및 JQL 구성.
+  1. 플래그 기반 JQL 자동 합성 (`internal/app/query_builder.go`) 또는 사용자 지정 JQL 사용.
   2. 요청 필드 제한: `summary`, `status`, `issuetype`, `priority`, `labels`, `assignee`, `duedate`, `created`, `updated`, `project`, `parent`, `subtasks`.
-  3. `pkg.PrintIssuesTable()`을 통해 고정폭 터미널 테이블로 렌더링.
+  3. 지정된 서식(`table`, `md`, `json`)에 맞춰 렌더링.
 - **예시**:
   ```bash
+  # 현재 프로젝트의 미완료 이슈 목록 (기본 조회)
   jira list
+
+  # 전체 프로젝트를 통틀어 오늘까지 해야 할 일 (미완료 + 연체 포함)
+  jira list --all --due '<=today'
+
+  # 전체 프로젝트에서 내게 할당된 열린 티켓 목록
+  jira list --all --assignee me
+
+  # 현재 프로젝트에서 이번 주 마감인 티켓 마크다운 출력
+  jira list --due week --md
+
+  # 수동 JQL 직접 입력
   jira list "labels = AI and status = '진행 중'"
-  jira list "assignee is EMPTY order by priority desc"
   ```
 
 ---

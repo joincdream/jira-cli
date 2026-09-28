@@ -239,6 +239,167 @@ func TestLoadConfigFileForProfile(t *testing.T) {
 	})
 }
 
+func TestProfileInheritance(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config")
+
+	content := `[default]
+instance_url = https://main.atlassian.net
+email = main@example.com
+api_token = token_main_123
+project_key = MAIN
+language = ko
+
+[frontend]
+project_key = FE
+
+[backend]
+source_profile = default
+project_key = BE
+email = backend-team@example.com
+language = en
+
+[tenant-client]
+instance_url = https://client.atlassian.net
+email = client@example.com
+api_token = token_client_456
+project_key = CLIENT
+
+[client-mobile]
+source_profile = tenant-client
+project_key = MOB
+
+[level1]
+instance_url = https://multi.atlassian.net
+email = multi@example.com
+api_token = token_multi_789
+project_key = LV1
+
+[level2]
+source_profile = level1
+project_key = LV2
+
+[level3]
+source_profile = level2
+project_key = LV3
+
+[cycle-a]
+source_profile = cycle-b
+project_key = A
+
+[cycle-b]
+source_profile = cycle-a
+project_key = B
+
+[orphan]
+source_profile = non-existent-profile
+project_key = ORPHAN
+`
+
+	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	t.Run("implicit default fallback", func(t *testing.T) {
+		cfg, err := LoadConfigFileForProfile(configPath, "frontend")
+		if err != nil {
+			t.Fatalf("expected successful load with default fallback: %v", err)
+		}
+		if cfg.InstanceURL != "https://main.atlassian.net" {
+			t.Errorf("expected inherited URL, got %s", cfg.InstanceURL)
+		}
+		if cfg.Email != "main@example.com" {
+			t.Errorf("expected inherited email, got %s", cfg.Email)
+		}
+		if cfg.APIToken != "token_main_123" {
+			t.Errorf("expected inherited token, got %s", cfg.APIToken)
+		}
+		if cfg.ProjectKey != "FE" {
+			t.Errorf("expected project FE, got %s", cfg.ProjectKey)
+		}
+		if cfg.Language != "ko" {
+			t.Errorf("expected inherited language ko, got %s", cfg.Language)
+		}
+	})
+
+	t.Run("explicit source_profile and field override", func(t *testing.T) {
+		cfg, err := LoadConfigFileForProfile(configPath, "backend")
+		if err != nil {
+			t.Fatalf("expected successful load: %v", err)
+		}
+		if cfg.InstanceURL != "https://main.atlassian.net" {
+			t.Errorf("expected inherited URL, got %s", cfg.InstanceURL)
+		}
+		if cfg.APIToken != "token_main_123" {
+			t.Errorf("expected inherited token, got %s", cfg.APIToken)
+		}
+		if cfg.Email != "backend-team@example.com" {
+			t.Errorf("expected overridden email, got %s", cfg.Email)
+		}
+		if cfg.ProjectKey != "BE" {
+			t.Errorf("expected project BE, got %s", cfg.ProjectKey)
+		}
+		if cfg.Language != "en" {
+			t.Errorf("expected overridden language en, got %s", cfg.Language)
+		}
+	})
+
+	t.Run("explicit source_profile from non-default tenant", func(t *testing.T) {
+		cfg, err := LoadConfigFileForProfile(configPath, "client-mobile")
+		if err != nil {
+			t.Fatalf("expected successful load: %v", err)
+		}
+		if cfg.InstanceURL != "https://client.atlassian.net" {
+			t.Errorf("expected client URL, got %s", cfg.InstanceURL)
+		}
+		if cfg.Email != "client@example.com" {
+			t.Errorf("expected client email, got %s", cfg.Email)
+		}
+		if cfg.APIToken != "token_client_456" {
+			t.Errorf("expected client token, got %s", cfg.APIToken)
+		}
+		if cfg.ProjectKey != "MOB" {
+			t.Errorf("expected project MOB, got %s", cfg.ProjectKey)
+		}
+	})
+
+	t.Run("multi-level inheritance chain", func(t *testing.T) {
+		cfg, err := LoadConfigFileForProfile(configPath, "level3")
+		if err != nil {
+			t.Fatalf("expected multi-level inheritance to work: %v", err)
+		}
+		if cfg.InstanceURL != "https://multi.atlassian.net" {
+			t.Errorf("expected multi URL from level1, got %s", cfg.InstanceURL)
+		}
+		if cfg.APIToken != "token_multi_789" {
+			t.Errorf("expected multi token from level1, got %s", cfg.APIToken)
+		}
+		if cfg.ProjectKey != "LV3" {
+			t.Errorf("expected project LV3, got %s", cfg.ProjectKey)
+		}
+	})
+
+	t.Run("circular reference detection", func(t *testing.T) {
+		_, err := LoadConfigFileForProfile(configPath, "cycle-a")
+		if err == nil {
+			t.Fatal("expected error on circular profile inheritance, got nil")
+		}
+		if !strings.Contains(err.Error(), "순환 참조가 감지되었습니다") {
+			t.Errorf("expected circular reference error message, got: %v", err)
+		}
+	})
+
+	t.Run("missing source_profile error", func(t *testing.T) {
+		_, err := LoadConfigFileForProfile(configPath, "orphan")
+		if err == nil {
+			t.Fatal("expected error on missing base profile, got nil")
+		}
+		if !strings.Contains(err.Error(), "상속 대상 프로필 [non-existent-profile]을(를) 찾을 수 없습니다") {
+			t.Errorf("expected missing profile error message, got: %v", err)
+		}
+	})
+}
+
 func TestFormatJiraAPIError(t *testing.T) {
 	t.Run("structured error response", func(t *testing.T) {
 		jsonErr := `{
