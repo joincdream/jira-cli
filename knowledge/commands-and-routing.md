@@ -10,9 +10,10 @@ tags:
   - markdown
   - json
 status: stable
-timestamp: 2026-09-28T17:15:00+09:00
+timestamp: 2026-10-15T10:55:00+09:00
 sources:
   - internal/app/commands_issue.go
+  - internal/app/commands_open.go
   - internal/app/commands_report.go
   - internal/app/commands_meta.go
   - internal/app/app.go
@@ -42,6 +43,8 @@ verified: true
 | `comment` | - | `commands_issue.go` | 티켓에 코멘트 추가 (ADF 변환 지원) |
 | `transitions` | - | `commands_issue.go` | 해당 티켓에서 전이 가능한 워크플로 상태 ID 및 이름 조회 |
 | `delete` | `rm` | `commands_issue.go` | 티켓 삭제 (단독 또는 하위작업 포함) |
+| `open` | `browse` | `commands_open.go` | 티켓 상세 페이지 또는 프로젝트 보드를 브라우저에서 열기 |
+| `report` | `digest`, `summary` | `commands_report.go` | 주간 업무 브리핑 및 프로젝트 진척 현황 요약 리포트 |
 | `labels` | `tags` | `commands_meta.go` | 프로젝트 표준 라벨 카탈로그 조회 |
 | `configure` | `config` | `commands_config.go` | 대화형 프로필 생성/수정 및 목록 조회 |
 

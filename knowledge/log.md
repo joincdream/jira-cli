@@ -7,13 +7,31 @@ tags:
   - log
   - changelog
 status: stable
-timestamp: 2026-09-28T10:05:00+09:00
+timestamp: 2026-10-15T11:09:00+09:00
 verified: true
 ---
 
 # 📜 Jira CLI Knowledge Log
 
 본 문서는 `knowledge/` 번들 내 지식 자산의 생성, 코드 변경에 따른 동기화 및 검증 이력을 기록합니다.
+
+---
+
+## 2026-10-15 (JC-3: Web Browser Handoff Feature - jira open / browse)
+- **작업 티켓**: [JC-3](https://joincdream.atlassian.net/browse/JC-3)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. `jira open [KEY]` 및 별칭 `jira browse` 서브커맨드 구현 (`internal/app/commands_open.go`).
+  2. Zero-Dependency 크로스 플랫폼 브라우저 런처 구현 (Linux: `xdg-open`, macOS: `open`, Windows: `cmd /c start`).
+  3. 커스텀 브라우저 실행 지원: `--browser <cmd>` 플래그 및 `JIRA_BROWSER` / `BROWSER` 환경변수 연동.
+  4. `--url-only` 플래그 및 위치 인자 순서 독립성(`internal/app/flags.go`) 지원.
+  5. URL 라우팅 최적화:
+     - 이슈 키 전달 시: `https://<domain>/browse/<KEY>`
+     - 프로젝트 모드(키 미전달 시): Jira 표준 단축 리다이렉트 URL인 `https://<domain>/browse/<ProjectKey>`로 연결하여 사전 API 호출 없이 대표 활성 보드로 자동 핸드오프.
+  6. 비-GUI/헤드리스 환경 실행 실패 시 콘솔에 대상 URL을 안내하는 Graceful Fallback 처리.
+  7. 다국어(`internal/i18n/locales/{en,ko}.json`) 및 단위 테스트(`internal/app/commands_open_test.go`) 100% Pass 검증.
+- **검증 소스**:
+  - `internal/app/commands_open_test.go`, `go test -v ./...` (테스트 100% Pass)
 
 ---
 

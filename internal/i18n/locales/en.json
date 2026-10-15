@@ -138,5 +138,11 @@
   "cmd.report.flag_all": "Generate report across all projects",
   "cmd.report.flag_project": "Target project key for report",
   "cmd.report.flag_assignee": "Filter by assignee (supports me)",
-  "cmd.report.flag_period": "Aggregation period (week, month, all)"
+  "cmd.report.flag_period": "Aggregation period (week, month, all)",
+  "cmd.open.desc": "Open an issue or project board in the web browser.",
+  "cmd.open.usage": "Usage: jira open [KEY] [--browser <cmd>] [--url-only]\nOpen an issue or project board in the web browser. (alias: browse)\n\nOptions:\n  --browser string   Custom browser command to execute (e.g. 'google-chrome', 'firefox')\n  --url-only         Print the target URL without launching a browser",
+  "cmd.open.opening": "🌐 Opening in browser: %s\n",
+  "cmd.open.fallback": "⚠️  Failed to open browser. Please visit the URL below:\n%s\n",
+  "cmd.open.flag_browser": "Custom browser command to execute (e.g. 'google-chrome', 'firefox')",
+  "cmd.open.flag_url_only": "Print the target URL without launching a browser"
 }
