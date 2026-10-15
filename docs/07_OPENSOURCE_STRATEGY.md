@@ -167,11 +167,16 @@ CLI 도구에서 "시각적 결과 확인(Visualization)"을 어떻게 다룰 �
 
 ```text
 ❌ 피해야 할 포지셔닝: "웹 브라우저를 터미널 안에서 흉내 내는 화려한 TUI 대시보드"
-⭕ 지향해야 할 포지셔닝: "The Zero-Dependency, AI-Native & Headless Jira CLI with Seamless Web Hand-off"
+⭕ 지향해야 할 포지셔닝: "The Agent-Native Jira Toolkit: Built for Cursor, Claude Code, and Modern Developers"
 ```
 
 ### 핵심 슬로건
-> **"터미널에서는 0.1초 만에 가볍게, 복잡한 시각화는 공식 웹으로 스마트하게 토스한다."**
+> **"터미널에서는 0.1초 만에 가볍게, AI 에이전트와는 완벽한 마크다운으로 협업하고, 복잡한 시각화는 공식 웹으로 스마트하게 토스한다."**
+
+### AI CLI 자율 협업 3단계 루프 (Call ➔ Analyze ➔ Action)
+1. **호출(Call)**: 비대화형(Non-interactive) 원칙, Fail-Fast 및 엄격한 종료 코드(0/1)로 무한 대기 없는 안정적 실행.
+2. **분석(Analyze)**: `jira get --md`로 ADF JSON 대비 토큰 70~80%를 절감하며 단일 호출로 요구사항·코멘트·하위작업 맥락을 0.1초 만에 파악.
+3. **액션(Action)**: 구현 완료 후 `jira comment` 및 `jira move`로 티켓 상태를 자율 마감.
 
 ---
 
@@ -184,24 +189,29 @@ CLI 도구에서 "시각적 결과 확인(Visualization)"을 어떻게 다룰 �
   - `--help` 및 `-h` 플래그 입력 시 API 호출 방지 및 즉시 사용법(Usage) 출력 후 종료(Exit 0).
   - 옵션과 위치 인자의 순서 독립성(Order Independence) 보장 및 Double Dash(`--`) 지원.
   - 티켓 생성 사전 검증(Client-side Guardrail): 제목 5자 이상/플래그형 문자열 차단, 설명(`-d`) 기본 필수화(`--allow-empty-desc` 예외 지원), 마감일 날짜 포맷 로컬 검증.
-- [ ] **[JC-3] 웹 핸드오프 커맨드 추가 (`jira open` / `jira browse`)**:
+- [x] **[JC-3] 웹 핸드오프 커맨드 추가 (`jira open` / `jira browse`) (P0 - 완료)**:
   - `jira open <KEY>`: 기본 웹 브라우저에서 해당 티켓 URL 즉시 열기 (`https://<domain>/browse/<KEY>`).
-  - `jira open`: 현재 프로젝트의 활성 칸반/스크럼 보드 즉시 열기.
-  - OS별 표준 명령(`xdg-open` on Linux, `open` on macOS, `rundll32` on Windows)을 활용한 Zero-Dependency 구현.
-- [ ] **[JC-4] Go 공식 준표준 패키지(golang.org/x/text) 기반 i18n 다국어 시스템 구축**:
-  - Go 코어 팀의 공식 준표준 라이브러리(`golang.org/x/text/message`, `golang.org/x/text/language`)를 채택하여 표준적이고 안정적인 다국어 환경 구축.
+  - `jira open`: 현재 프로젝트의 활성 보드로 자동 리다이렉트되는 프로젝트 URL(`https://<domain>/browse/<ProjectKey>`) 즉시 열기.
+  - OS별 표준 명령(`xdg-open` on Linux, `open` on macOS, `cmd /c start` on Windows)을 활용한 Zero-Dependency 구현.
+  - `--browser` 커스텀 브라우저 실행 및 `--url-only` 지원.
+- [x] **[JC-4] i18n 다국어 시스템 구축 (P0 - 완료)**:
+  - 표준 라이브러리(`embed.FS`) 기반 무의존성 다국어 환경 구축.
   - 글로벌 오픈소스 표준 언어인 영어(`en`)를 기본값으로 설정하고 한국어(`ko`) 완벽 지원.
   - 로케일 매칭: CLI 플래그(`--lang`) > 환경변수(`JIRA_LANG`) > 프로필 설정(`language`) > OS 로케일(`LANG`) > 기본값(`en`).
+- [x] **[JC-9] AWS CLI 스타일 프로필 상속(source_profile 및 Default Fallback) 지원 (P0 - 완료)**:
+  - `[default]` 프로필 자동 상속: `instance_url`, `email`, `api_token` 누락 시 기본 프로필에서 자동 주입.
+  - 명시적 상속: `source_profile = <name>` 지원으로 제2의 테넌트(고객사/외주 계정)의 멀티 프로젝트 공유 지원.
+  - API 토큰 단일 지점 관리 및 `jira configure` 상속 설정 연동.
+- [x] **[JC-10] jira list 범용 필터 플래그(--all, --due, --status, --assignee) 지원 (완료)**:
+  - JQL 없이도 오늘 할 일, 내 담당 티켓, 미완료 티켓을 직관적으로 필터링.
+- [x] **[JC-11] 주간 업무 브리핑 및 프로젝트 진척 리포트(jira report) 지원 (완료)**:
+  - AI 에이전트와 엔지니어가 한 주간의 성과와 진행 상황을 한눈에 파악할 수 있는 다각도 요약 리포트.
 - [ ] **[JC-5] Git 브랜치 컨텍스트 기반 이슈 키 자동 감지**:
   - 현재 git 브랜치(`feature/JC-12-auth`)에서 티켓 키(`JC-12`)를 정규식으로 파싱하여, 키 인수를 생략해도 현재 티켓을 자동 조작 (`jira get`, `jira move "In Progress"`, `jira open`).
 - [ ] **[JC-6] Jira 상태 전이(Transition) 화면 에러 가이드 강화**:
   - 상태 전이 실패 시 반환되는 Jira API 에러를 파싱하여 "이 상태 변경에는 [해결책(Resolution)] 필드가 필수입니다"와 같이 명확한 실패 사유 출력 및 웹 완결 가이드(`jira open`) 제공.
-- [ ] **[JC-9] AWS CLI 스타일 프로필 상속(source_profile 및 Default Fallback) 지원**:
-  - `[default]` 프로필 자동 상속: `instance_url`, `email`, `api_token` 누락 시 기본 프로필에서 자동 주입.
-  - 명시적 상속: `source_profile = <name>` 지원으로 제2의 테넌트(고객사/외주 계정)의 멀티 프로젝트 공유 지원.
-  - API 토큰 단일 지점 관리 및 `jira configure` 상속 설정 연동.
 - [ ] **[JC-7] 오픈소스 배포 자동화 파이프라인 및 문서화 구축**:
-  - GoReleaser + GitHub Actions 멀티 OS 바이너리 릴리스, Homebrew Tap, `vhs` 데모 GIF, AI Agent(`SKILL.md`) 연동 가이드.
+  - GoReleaser + GitHub Actions 멀티 OS 바이너리 릴리스, Homebrew Tap, `vhs` 데모 GIF, AI Agent(`SKILL.md`) 연동 가이드 및 MCP(Model Context Protocol) 지원 검토.
 
 ### Phase 2. 엔터프라이즈 확장성 확보
 - [ ] **설정 기반 커스텀 필드 매핑**:

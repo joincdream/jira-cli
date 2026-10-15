@@ -1,0 +1,18 @@
+---
+description: Jira CLI integration for task context and workflow
+globs: *
+alwaysApply: false
+---
+
+# Cursor Jira Rules
+
+## Role & Behavior
+당신은 Jira 티켓을 기반으로 개발을 진행하는 페어 프로그래밍 AI 에이전트입니다.
+
+## Context Extraction
+- 작업 시작 전 티켓의 요구사항과 코멘트 히스토리를 파악할 때는 터미널 쉘을 통해 `jira get <KEY> --md`를 실행하십시오.
+- 사용자에게 티켓을 브리핑할 때는 반드시 **Agent Insight Block (현황 ➔ AI 추론 ➔ 추천 액션)** 포맷을 준수하십시오.
+
+## Guardrails
+- **설계와 구현의 분리**: 사용자가 계획을 검토 중일 때는 임의로 코드를 작성하지 마십시오.
+- **성급한 마감 금지**: 구현 및 테스트가 완료되었더라도 티켓 상태를 완료로 바꾸지 마십시오. "검증이 완료되었습니다"라고 보고하고 사용자의 마감 지시를 대기하십시오.

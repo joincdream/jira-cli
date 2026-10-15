@@ -16,6 +16,9 @@
 | `comment` | - | 이슈에 코멘트 추가 | `POST /rest/api/3/issue/{key}/comment` |
 | `transitions`| - | 변경 가능한 상태 목록 조회 | `GET /rest/api/3/issue/{key}/transitions` |
 | `delete` | `rm` | 이슈 삭제 | `DELETE /rest/api/3/issue/{key}` |
+| `open` | `browse` | 티켓 상세 또는 프로젝트 보드를 브라우저에서 열기 | 브라우저 핸드오프 (`xdg-open` 등) |
+| `init-agent` | - | AI 코딩 에이전트(Cursor, Claude Code, Antigravity) 연동 룰 및 SKILL 초기화 | 로컬 파일 I/O (`embed.FS`) |
+| `report` | `digest`, `summary` | 주간 업무 브리핑 및 프로젝트 진척 리포트 | 다중 JQL 및 집계 엔진 |
 | `labels` | `tags` | 표준 라벨 카탈로그 조회 | 로컬 `labels.json` 파싱 |
 | `configure` | `configuration`, `config` | 대화형 설정 마법사 | 로컬/전역 파일 I/O |
 | `version` | `-v`, `--version` | 버전 출력 | 내부 상수 (`DefaultVersion`) |
@@ -226,5 +229,50 @@
   # 이번 달 전사 리포트 JSON 출력 (AI 분석용)
   jira report --all --period month --json
   ```
+
+---
+
+### 12. `jira open` (웹 브라우저 핸드오프)
+- **문법**: `jira open [KEY] [flags]`
+- **별칭(Aliases)**: `browse`
+- **인수 및 플래그**:
+  - `[KEY]` (선택): 대상 이슈 키. 생략 시 현재 활성 프로필 프로젝트의 보드 페이지 열기.
+  - `--print`, `-p` (선택): 브라우저를 열지 않고 생성된 대상 URL만 터미널에 출력 (헤드리스/원격 SSH 환경 유용).
+- **예시**:
+  ```bash
+  # 이슈 상세 웹 페이지 열기
+  jira open JC-13
+
+  # 현재 프로젝트의 기본 보드 페이지 열기
+  jira open
+
+  # URL만 출력
+  jira open JC-13 --print
+  ```
+
+---
+
+### 13. `jira init-agent` (AI 코딩 에이전트 룰 및 SKILL 자동 배포)
+- **문법**: `jira init-agent [flags]`
+- **인수 및 플래그**:
+  - `--type <cursor|claude|antigravity|all>` (선택): 대상 에이전트 환경 지정. 생략 시 대화형 번호 선택 프롬프트 표시.
+  - `--force`, `-f` (선택): 이미 존재하는 설정 파일 강제 덮어쓰기.
+- **생성 대상 파일 규격**:
+  - `cursor`: `.cursor/rules/jira.mdc` (Cursor IDE Agent Rule)
+  - `claude`: `CLAUDE.md` (Claude Code Agent Guidelines)
+  - `antigravity`: `.agents/skills/jira/SKILL.md` (Antigravity Workspace Skill)
+  - `all`: 상기 3종 전체 일괄 생성
+- **예시**:
+  ```bash
+  # 대화형 프롬프트로 생성할 에이전트 선택
+  jira init-agent
+
+  # Antigravity 스킬 단독 생성
+  jira init-agent --type antigravity
+
+  # 모든 에이전트 룰 일괄 생성 및 기존 파일 강제 덮어쓰기
+  jira init-agent --type all --force
+  ```
+
 
 

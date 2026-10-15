@@ -144,5 +144,16 @@
   "cmd.open.opening": "🌐 Opening in browser: %s\n",
   "cmd.open.fallback": "⚠️  Failed to open browser. Please visit the URL below:\n%s\n",
   "cmd.open.flag_browser": "Custom browser command to execute (e.g. 'google-chrome', 'firefox')",
-  "cmd.open.flag_url_only": "Print the target URL without launching a browser"
+  "cmd.open.flag_url_only": "Print the target URL without launching a browser",
+  "cmd.init_agent.desc": "Initialize AI coding agent (Cursor, Claude Code, Antigravity) rules and SKILL files in current directory.",
+  "cmd.init_agent.usage": "Usage: jira init-agent [--type cursor|claude|antigravity|all] [--force|-f]\nGenerate AI coding agent integration rules and SKILL files.\n\nOptions:\n  --type string   Agent type to generate (cursor, claude, antigravity, all, default: all)\n  --force, -f     Overwrite existing files",
+  "cmd.init_agent.flag_type": "Agent type to generate (cursor, claude, antigravity, all)",
+  "cmd.init_agent.flag_force": "Overwrite existing files",
+  "cmd.init_agent.header": "🤖 Initializing AI agent configuration... (Target directory: %s)\n\n",
+  "cmd.init_agent.created": "  ✅ [%s] Created: %s\n",
+  "cmd.init_agent.skipped": "  ⚠️  [%s] Skipped (already exists: %s, use --force to overwrite)\n",
+  "cmd.init_agent.footer": "\n🎉 AI agent rulesets configured successfully. Agents can now operate Jira CLI seamlessly.\n",
+  "cmd.init_agent.err_invalid_type": "Invalid agent type: '%s' (Choices: cursor, claude, antigravity, all)",
+  "cmd.init_agent.prompt_title": "🤖 Select AI agent rulesets to initialize (comma-separated, Enter for All):\n  [1] Cursor IDE        (.cursor/rules/jira.mdc)\n  [2] Claude Code       (CLAUDE.md)\n  [3] Antigravity       (.agents/skills/jira/SKILL.md)\n  [4] Select All (All)\n\nEnter choice (default: 4): ",
+  "cmd.init_agent.prompt_invalid": "Invalid choice: '%s'"
 }

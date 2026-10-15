@@ -7,13 +7,37 @@ tags:
   - log
   - changelog
 status: stable
-timestamp: 2026-10-15T11:09:00+09:00
+timestamp: 2026-10-15T15:33:00+09:00
 verified: true
 ---
 
 # 📜 Jira CLI Knowledge Log
 
 본 문서는 `knowledge/` 번들 내 지식 자산의 생성, 코드 변경에 따른 동기화 및 검증 이력을 기록합니다.
+
+---
+
+## 2026-10-15 (JC-13: AI CLI Environment Integration & Agent Insight Block Support)
+- **작업 티켓**: [JC-13](https://joincdream.atlassian.net/browse/JC-13)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. `jira init-agent` 서브커맨드 구현 (`internal/app/commands_agent.go`):
+     - AI 코딩 에이전트(Cursor, Claude Code, Antigravity) 연동 룰 및 SKILL 파일 자동 생성기.
+     - 대화형(Interactive) 체크박스/다중 번호 선택 프롬프트 및 비대화형 `--type <cursor|claude|antigravity|all>` 플래그 지원.
+     - 기존 파일 보호(중복 스킵) 및 `--force` 덮어쓰기 지원.
+     - 워크스페이스 스킬 경로 규격(`.agents/skills/jira/SKILL.md`) 준수.
+  2. 에이전트 템플릿 임베딩 번들링 (`internal/templates/`):
+     - Go 표준 `embed.FS`를 활용하여 Zero-Dependency로 템플릿 내장 (`cursor.mdc`, `claude.md`, `skill.md`).
+  3. `Agent Insight Block` 출력 계약 규격화:
+     - 에이전트가 Jira 티켓을 분석 및 브리핑할 때 [현황 ➔ AI 추론 & 맥락 ➔ 추천 액션] 3단 레이아웃 표준화.
+     - Human Gatekeeper 가드레일 확립: 에이전트의 성급한 자율 마감(`move Done`) 금지 및 사용자 승인 필수화.
+  4. 다국어 지원 (`internal/i18n/locales/{en,ko}.json`):
+     - `cmd.init_agent.*` 메시지 카탈로그 등록.
+  5. 단위 테스트 및 E2E 실전 협업 시나리오 검증:
+     - `internal/app/commands_agent_test.go` 단위 테스트 작성 및 100% Pass.
+     - Antigravity 에이전트와의 실전 E2E 협업(조회 ➔ 맥락 브리핑 ➔ 코멘트 등록 ➔ 웹 브라우저 토스 ➔ Human Gatekeeper 승인) 검증 완료.
+- **검증 소스**:
+  - `internal/app/commands_agent_test.go`, `go test -v ./...` (100% Pass), `task/JC-13.md`
 
 ---
 

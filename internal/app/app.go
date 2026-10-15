@@ -82,6 +82,7 @@ func (a *App) registerBuiltinCommands() {
 	a.Register(NewDeleteCommand(a.clientProvider))
 	a.Register(NewReportCommand(a.clientProvider))
 	a.Register(NewOpenCommand(a.clientProvider))
+	a.Register(NewInitAgentCommand())
 }
 
 // PrintUsage outputs the usage message to the specified writer based on active language.
@@ -108,6 +109,7 @@ func (a *App) PrintUsage(w io.Writer) {
   delete <KEY>                   이슈 삭제 (별칭: rm)
   report [flags]                 주간 업무 브리핑 및 프로젝트 진척 리포트 생성 (별칭: digest, summary)
   open [KEY] [flags]             이슈 또는 프로젝트 보드를 브라우저에서 열기 (별칭: browse)
+  init-agent [flags]             AI 에이전트(Cursor, Claude, Antigravity) 연동 룰셋 초기화 (별칭: agent-init)
   labels                         표준 라벨 카탈로그 및 가이드 조회 (별칭: tags)
   configure [--profile <name>]   대화형 Jira 프로필 설정 (~/.config/jira/config, 별칭: config)
   configure list                 등록된 Jira 프로필 목록 조회
@@ -185,6 +187,7 @@ Commands:
   delete <KEY>                   Delete an issue permanently (alias: rm)
   report [flags]                 Generate progress and weekly briefing report (alias: digest, summary)
   open [KEY] [flags]             Open issue or project board in browser (alias: browse)
+  init-agent [flags]             Initialize AI agent (Cursor, Claude, Antigravity) rulesets (alias: agent-init)
   labels                         View standard labels catalog and guide (alias: tags)
   configure [--profile <name>]   Interactive configuration wizard (~/.config/jira/config, alias: config)
   configure list                 List configured Jira profiles
