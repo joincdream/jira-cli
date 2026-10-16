@@ -168,3 +168,143 @@ func TestPrintIssueJSON(t *testing.T) {
 	}
 }
 
+func TestPrintIssuesMarkdownDetailed(t *testing.T) {
+	t.Run("empty list", func(t *testing.T) {
+		var buf bytes.Buffer
+		PrintIssuesMarkdownDetailed(&buf, []Issue{})
+		if !strings.Contains(buf.String(), "등록된 Jira 티켓이 없습니다") {
+			t.Errorf("expected empty message, got %q", buf.String())
+		}
+	})
+
+	t.Run("multiple issues with details", func(t *testing.T) {
+		var buf bytes.Buffer
+		issues := []Issue{
+			{
+				Key: "KAN-1",
+				Fields: IssueFields{
+					Summary:     "First Task",
+					Description: "First task description",
+					Status:      Status{Name: "진행 중"},
+					IssueType:   IssueType{Name: "작업"},
+					Project:     Project{Key: "KAN", Name: "Kanban"},
+				},
+			},
+			{
+				Key: "KAN-2",
+				Fields: IssueFields{
+					Summary:     "Second Task",
+					Description: "Second task description",
+					Status:      Status{Name: "To Do"},
+					IssueType:   IssueType{Name: "스토리"},
+					Project:     Project{Key: "KAN", Name: "Kanban"},
+				},
+			},
+		}
+
+		PrintIssuesMarkdownDetailed(&buf, issues)
+		out := buf.String()
+
+		if !strings.Contains(out, "# [KAN-1] First Task") {
+			t.Errorf("missing KAN-1 title in output: %s", out)
+		}
+		if !strings.Contains(out, "First task description") {
+			t.Errorf("missing KAN-1 description in output: %s", out)
+		}
+		if !strings.Contains(out, "---") {
+			t.Errorf("missing delimiter between issues in output: %s", out)
+		}
+		if !strings.Contains(out, "# [KAN-2] Second Task") {
+			t.Errorf("missing KAN-2 title in output: %s", out)
+		}
+		if !strings.Contains(out, "Second task description") {
+			t.Errorf("missing KAN-2 description in output: %s", out)
+		}
+	})
+}
+
+func TestPrintIssuesTableDetailed(t *testing.T) {
+	var buf bytes.Buffer
+	issues := []Issue{
+		{
+			Key: "KAN-1",
+			Fields: IssueFields{
+				Summary:     "First Task",
+				Description: "First task description",
+				Status:      Status{Name: "진행 중"},
+				IssueType:   IssueType{Name: "작업"},
+				Project:     Project{Key: "KAN", Name: "Kanban"},
+			},
+		},
+	}
+	PrintIssuesTableDetailed(&buf, issues)
+	out := buf.String()
+	if !strings.Contains(out, "🎫 [KAN-1] First Task") {
+		t.Errorf("expected detailed issue header, got %s", out)
+	}
+	if !strings.Contains(out, "First task description") {
+		t.Errorf("expected description, got %s", out)
+	}
+}
+
+func TestPrintUsersFormatting(t *testing.T) {
+	users := []User{
+		{
+			AccountID:    "acc-1",
+			DisplayName:  "Alice Smith",
+			EmailAddress: "alice@example.com",
+			Active:       true,
+		},
+		{
+			AccountID:    "acc-2",
+			DisplayName:  "Bob Jones",
+			EmailAddress: "bob@example.com",
+			Active:       false,
+		},
+	}
+
+	t.Run("table output", func(t *testing.T) {
+		var buf bytes.Buffer
+		PrintUsersTable(&buf, users)
+		out := buf.String()
+		if !strings.Contains(out, "Alice Smith") || !strings.Contains(out, "alice@example.com") {
+			t.Errorf("expected Alice in table output, got: %s", out)
+		}
+		if !strings.Contains(out, "Bob Jones") || !strings.Contains(out, "Inactive") {
+			t.Errorf("expected Bob (Inactive) in table output, got: %s", out)
+		}
+	})
+
+	t.Run("markdown output", func(t *testing.T) {
+		var buf bytes.Buffer
+		PrintUsersMarkdown(&buf, users)
+		out := buf.String()
+		if !strings.Contains(out, "| Display Name | Email | Status | Account ID |") {
+			t.Errorf("expected markdown header, got: %s", out)
+		}
+		if !strings.Contains(out, "| Alice Smith | alice@example.com | Active | `acc-1` |") {
+			t.Errorf("expected Alice markdown row, got: %s", out)
+		}
+	})
+
+	t.Run("json output", func(t *testing.T) {
+		var buf bytes.Buffer
+		err := PrintUsersJSON(&buf, users)
+		if err != nil {
+			t.Fatalf("PrintUsersJSON failed: %v", err)
+		}
+		out := buf.String()
+		if !strings.Contains(out, `"accountId": "acc-1"`) {
+			t.Errorf("expected acc-1 in JSON output, got: %s", out)
+		}
+	})
+
+	t.Run("empty users", func(t *testing.T) {
+		var buf bytes.Buffer
+		PrintUsersTable(&buf, []User{})
+		if !strings.Contains(buf.String(), "조회된 Jira 사용자가 없습니다.") {
+			t.Errorf("expected empty message, got %q", buf.String())
+		}
+	})
+}
+

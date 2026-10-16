@@ -77,6 +77,8 @@ func (a *App) registerBuiltinCommands() {
 	a.Register(NewCreateCommand(a.clientProvider, a.catalogLoader))
 	a.Register(NewEditCommand(a.clientProvider, a.catalogLoader))
 	a.Register(NewMoveCommand(a.clientProvider))
+	a.Register(NewAssignCommand(a.clientProvider))
+	a.Register(NewUsersCommand(a.clientProvider))
 	a.Register(NewCommentCommand(a.clientProvider))
 	a.Register(NewTransitionsCommand(a.clientProvider))
 	a.Register(NewDeleteCommand(a.clientProvider))
@@ -103,10 +105,12 @@ func (a *App) PrintUsage(w io.Writer) {
   get <KEY> [flags]              특정 이슈 상세, 설명, 하위작업, 코멘트 전체 맥락 조회 (별칭: view, show)
   create <SUMMARY> [flags]       신규 이슈(작업/스토리/에픽/버그/Subtask) 생성 (별칭: new, add)
   edit <KEY> [flags]             기존 이슈 정보(라벨, 마감일, 제목, 설명, 상위이슈) 수정 (별칭: update)
+  assign <KEY> <USER>            이슈 담당자 지정/변경 (me, none, 이메일, 이름)
   move <KEY> <STATUS>            이슈 상태 전이 (예: '해야 할 일', '진행 중', '완료', 별칭: transition, status)
   comment <KEY> <MESSAGE>        이슈에 코멘트 등록
   transitions <KEY>              해당 이슈에서 전이 가능한 워크플로 상태 목록 조회
   delete <KEY>                   이슈 삭제 (별칭: rm)
+  users [flags] [query]          사용자/팀원 검색 및 목록 조회 (별칭: user)
   report [flags]                 주간 업무 브리핑 및 프로젝트 진척 리포트 생성 (별칭: digest, summary)
   open [KEY] [flags]             이슈 또는 프로젝트 보드를 브라우저에서 열기 (별칭: browse)
   init-agent [flags]             AI 에이전트(Cursor, Claude, Antigravity) 연동 룰셋 초기화 (별칭: agent-init)
@@ -120,7 +124,7 @@ func (a *App) PrintUsage(w io.Writer) {
   --profile string               사용할 계정 프로필 (기본: default, 환경변수: JIRA_PROFILE)
   --lang string                  UI 언어 설정 (en, ko, 기본: en, 환경변수: JIRA_LANG)
 
-출력 포맷 플래그 (Output Flags for list, get):
+출력 포맷 플래그 (Output Flags for list, get, users):
   -o, --output string            출력 형식 지정 (table [기본], json, md)
   --json                         JSON 구조체로 출력 (AI Agent 도구 호출 및 Function calling용)
   --md, --markdown               Markdown 문서/테이블로 출력 (LLM 프롬프트 주입 및 맥락 파악용)
@@ -128,6 +132,7 @@ func (a *App) PrintUsage(w io.Writer) {
 생성 및 수정 플래그 (create / edit Flags):
   -d, --desc string              이슈 상세 설명 (Markdown 텍스트 지원, 자동 ADF 변환)
   -s, --summary string           이슈 요약/제목 (edit 전용)
+  -a, --assignee string          담당자 지정 (me, none, 이메일, 이름)
   -t, --type string              이슈 유형 (기본: '작업', 선택: 작업, 스토리, 에픽, Subtask, Bug)
   -l, --labels string            라벨 목록 (쉼표 구분, 예: 'AI,Planning,Development')
   --due string                   마감일 (형식: YYYY-MM-DD, 해제: none)
@@ -181,10 +186,12 @@ Commands:
   get <KEY> [flags]              View issue details, description, subtasks, and comments (alias: view, show)
   create <SUMMARY> [flags]       Create a new issue (Task/Story/Epic/Bug/Subtask, alias: new, add)
   edit <KEY> [flags]             Update existing issue fields (labels, due, summary, desc, parent, alias: update)
+  assign <KEY> <USER>            Assign issue to user (me, none, email, name)
   move <KEY> <STATUS>            Transition issue status (e.g. 'In Progress', 'Done', alias: transition, status)
   comment <KEY> <MESSAGE>        Add a comment to an issue
   transitions <KEY>              List available workflow transitions for an issue
   delete <KEY>                   Delete an issue permanently (alias: rm)
+  users [flags] [query]          Search and list users/teammates (alias: user)
   report [flags]                 Generate progress and weekly briefing report (alias: digest, summary)
   open [KEY] [flags]             Open issue or project board in browser (alias: browse)
   init-agent [flags]             Initialize AI agent (Cursor, Claude, Antigravity) rulesets (alias: agent-init)
@@ -198,7 +205,7 @@ Global Options:
   --profile string               Account profile to use (default: default, env: JIRA_PROFILE)
   --lang string                  Display language (en, ko, default: en, env: JIRA_LANG)
 
-Output Format Flags (for list, get):
+Output Format Flags (for list, get, users):
   -o, --output string            Specify output format (table [default], json, md)
   --json                         Output formatted JSON (for AI Agent tool calling)
   --md, --markdown               Output Markdown document/table (for LLM context injection)
@@ -206,6 +213,7 @@ Output Format Flags (for list, get):
 Create and Edit Flags (create / edit):
   -d, --desc string              Issue description (Markdown supported, converted to ADF)
   -s, --summary string           Issue summary/title (edit only)
+  -a, --assignee string          Assignee (me, none, email, name)
   -t, --type string              Issue type (default: 'Task', choices: Task, Story, Epic, Subtask, Bug)
   -l, --labels string            Labels list (comma-separated, e.g. 'AI,Development')
   --due string                   Due date (format: YYYY-MM-DD, clear: none)

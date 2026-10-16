@@ -510,13 +510,26 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	return respBytes, resp.StatusCode, nil
 }
 
-// ListIssues searches for issues matching JQL query.
+// ListIssuesOptions contains options for listing issues.
+type ListIssuesOptions struct {
+	Detail bool
+}
+
+// ListIssues searches for issues matching JQL query using default options.
 func (c *Client) ListIssues(ctx context.Context, jql string) ([]Issue, error) {
+	return c.ListIssuesWithOptions(ctx, jql, ListIssuesOptions{})
+}
+
+// ListIssuesWithOptions searches for issues matching JQL query with customized options.
+func (c *Client) ListIssuesWithOptions(ctx context.Context, jql string, opts ListIssuesOptions) ([]Issue, error) {
 	if jql == "" {
 		jql = fmt.Sprintf("project = %s ORDER BY created DESC", c.cfg.ProjectKey)
 	}
 
 	fields := "summary,status,issuetype,priority,labels,assignee,duedate,created,updated,project,parent,subtasks"
+	if opts.Detail {
+		fields += ",description,comment"
+	}
 	endpoint := fmt.Sprintf("/rest/api/3/search/jql?jql=%s&fields=%s", url.QueryEscape(jql), url.QueryEscape(fields))
 
 	respBytes, _, err := c.doRequest(ctx, "GET", endpoint, nil)
@@ -548,11 +561,38 @@ func (c *Client) GetIssue(ctx context.Context, key string) (*Issue, error) {
 	return &issue, nil
 }
 
-// CreateIssue creates a new issue in Jira.
+// CreateIssueOptions holds options for creating an issue.
+type CreateIssueOptions struct {
+	ProjectKey        string
+	Summary           string
+	Description       string
+	IssueTypeName     string
+	DueDate           string
+	ParentKey         string
+	Labels            []string
+	AssigneeAccountID string
+}
+
+// CreateIssue creates a new issue in Jira using standard parameters.
 func (c *Client) CreateIssue(ctx context.Context, projectKey, summary, description, issueTypeName, dueDate, parentKey string, labels []string) (*CreateIssueResponse, error) {
+	return c.CreateIssueWithOptions(ctx, CreateIssueOptions{
+		ProjectKey:    projectKey,
+		Summary:       summary,
+		Description:   description,
+		IssueTypeName: issueTypeName,
+		DueDate:       dueDate,
+		ParentKey:     parentKey,
+		Labels:        labels,
+	})
+}
+
+// CreateIssueWithOptions creates a new issue in Jira with customized options.
+func (c *Client) CreateIssueWithOptions(ctx context.Context, opts CreateIssueOptions) (*CreateIssueResponse, error) {
+	projectKey := opts.ProjectKey
 	if projectKey == "" {
 		projectKey = c.cfg.ProjectKey
 	}
+	issueTypeName := opts.IssueTypeName
 	if issueTypeName == "" {
 		issueTypeName = "작업"
 	}
@@ -562,23 +602,29 @@ func (c *Client) CreateIssue(ctx context.Context, projectKey, summary, descripti
 			Project: ProjectRef{
 				Key: projectKey,
 			},
-			Summary: summary,
+			Summary: opts.Summary,
 			IssueType: TypeRef{
 				Name: issueTypeName,
 			},
-			Labels: labels,
+			Labels: opts.Labels,
 		},
 	}
 
-	if description != "" {
-		req.Fields.Description = BuildADFDocument(description)
+	if opts.Description != "" {
+		req.Fields.Description = BuildADFDocument(opts.Description)
 	}
-	if dueDate != "" {
-		req.Fields.DueDate = dueDate
+	if opts.DueDate != "" {
+		req.Fields.DueDate = opts.DueDate
 	}
-	if parentKey != "" {
+	if opts.ParentKey != "" {
 		req.Fields.Parent = &ParentRef{
-			Key: parentKey,
+			Key: opts.ParentKey,
+		}
+	}
+	if opts.AssigneeAccountID != "" {
+		req.Fields.Assignee = &UserRef{
+			AccountID: opts.AssigneeAccountID,
+			ID:        opts.AssigneeAccountID,
 		}
 	}
 
@@ -667,12 +713,14 @@ func (c *Client) DeleteIssue(ctx context.Context, key string, deleteSubtasks boo
 
 // UpdateIssueOptions holds options for updating an issue.
 type UpdateIssueOptions struct {
-	Summary      *string
-	Description  *string
-	DueDate      *string
-	ParentKey    *string
-	Labels       []string
-	UpdateLabels bool
+	Summary           *string
+	Description       *string
+	DueDate           *string
+	ParentKey         *string
+	Labels            []string
+	UpdateLabels      bool
+	AssigneeAccountID *string
+	UpdateAssignee    bool
 }
 
 // UpdateIssue updates fields of an existing issue.
@@ -704,6 +752,16 @@ func (c *Client) UpdateIssue(ctx context.Context, key string, opts UpdateIssueOp
 	if opts.UpdateLabels {
 		fields["labels"] = opts.Labels
 	}
+	if opts.UpdateAssignee {
+		if opts.AssigneeAccountID == nil || *opts.AssigneeAccountID == "" || strings.EqualFold(*opts.AssigneeAccountID, "none") || strings.EqualFold(*opts.AssigneeAccountID, "null") || strings.EqualFold(*opts.AssigneeAccountID, "unassigned") {
+			fields["assignee"] = nil
+		} else {
+			fields["assignee"] = map[string]string{
+				"accountId": *opts.AssigneeAccountID,
+				"id":        *opts.AssigneeAccountID,
+			}
+		}
+	}
 
 	if len(fields) == 0 {
 		return fmt.Errorf("no fields to update")
@@ -716,6 +774,129 @@ func (c *Client) UpdateIssue(ctx context.Context, key string, opts UpdateIssueOp
 	endpoint := fmt.Sprintf("/rest/api/3/issue/%s", url.PathEscape(key))
 	_, _, err := c.doRequest(ctx, "PUT", endpoint, payload)
 	return err
+}
+
+// GetMyself retrieves the current authenticated user profile.
+func (c *Client) GetMyself(ctx context.Context) (*User, error) {
+	respBytes, _, err := c.doRequest(ctx, "GET", "/rest/api/3/myself", nil)
+	if err != nil {
+		return nil, err
+	}
+	var user User
+	if err := json.Unmarshal(respBytes, &user); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal myself response: %w", err)
+	}
+	return &user, nil
+}
+
+// SearchGlobalUsers searches across all users in the Jira instance.
+func (c *Client) SearchGlobalUsers(ctx context.Context, query string, includeInactive bool) ([]User, error) {
+	endpoint := fmt.Sprintf("/rest/api/3/users/search?maxResults=50&includeInactive=%t", includeInactive)
+	if query != "" {
+		endpoint += fmt.Sprintf("&query=%s", url.QueryEscape(query))
+	}
+	respBytes, _, err := c.doRequest(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	var users []User
+	if err := json.Unmarshal(respBytes, &users); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal global users: %w", err)
+	}
+	return users, nil
+}
+
+// SearchAssignableUsers searches for users assignable to projects or issues.
+func (c *Client) SearchAssignableUsers(ctx context.Context, projectKey, query string) ([]User, error) {
+	if projectKey == "" {
+		projectKey = c.cfg.ProjectKey
+	}
+	endpoint := fmt.Sprintf("/rest/api/3/user/assignable/search?project=%s&maxResults=50", url.QueryEscape(projectKey))
+	if query != "" {
+		endpoint += fmt.Sprintf("&query=%s", url.QueryEscape(query))
+	}
+	respBytes, _, err := c.doRequest(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	var users []User
+	if err := json.Unmarshal(respBytes, &users); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal assignable users: %w", err)
+	}
+	return users, nil
+}
+
+// AssignIssue sets or removes the assignee of an issue.
+func (c *Client) AssignIssue(ctx context.Context, key, accountID string) error {
+	payload := map[string]interface{}{}
+	if accountID == "" || strings.EqualFold(accountID, "none") || strings.EqualFold(accountID, "unassigned") {
+		payload["accountId"] = nil
+	} else {
+		payload["accountId"] = accountID
+	}
+	endpoint := fmt.Sprintf("/rest/api/3/issue/%s/assignee", url.PathEscape(key))
+	_, _, err := c.doRequest(ctx, "PUT", endpoint, payload)
+	return err
+}
+
+// ResolveUserAccountID resolves a user keyword ('me', 'none', email, display name) to a User object.
+// If userQuery is 'none' or 'unassigned', a User with empty AccountID is returned.
+func (c *Client) ResolveUserAccountID(ctx context.Context, projectKey, userQuery string) (*User, error) {
+	trimmed := strings.TrimSpace(userQuery)
+	if trimmed == "" {
+		return nil, fmt.Errorf("user query cannot be empty")
+	}
+
+	if strings.EqualFold(trimmed, "none") || strings.EqualFold(trimmed, "unassigned") {
+		return &User{
+			DisplayName:  "미지정 (None)",
+			EmailAddress: "",
+			AccountID:    "",
+		}, nil
+	}
+
+	if strings.EqualFold(trimmed, "me") {
+		return c.GetMyself(ctx)
+	}
+
+	// 1. Try assignable users in project first
+	assignable, err := c.SearchAssignableUsers(ctx, projectKey, trimmed)
+	if err == nil && len(assignable) > 0 {
+		if len(assignable) == 1 {
+			return &assignable[0], nil
+		}
+		// Check exact email or exact display name match
+		for _, u := range assignable {
+			if strings.EqualFold(u.EmailAddress, trimmed) || strings.EqualFold(u.DisplayName, trimmed) {
+				return &u, nil
+			}
+		}
+		var candidates []string
+		for _, u := range assignable {
+			candidates = append(candidates, fmt.Sprintf("%s (%s)", u.DisplayName, u.EmailAddress))
+		}
+		return nil, fmt.Errorf("다중 사용자가 검색되었습니다: %s (더 구체적인 이메일을 입력하세요)", strings.Join(candidates, ", "))
+	}
+
+	// 2. Fallback to global user search
+	globalUsers, err := c.SearchGlobalUsers(ctx, trimmed, false)
+	if err == nil && len(globalUsers) > 0 {
+		if len(globalUsers) == 1 {
+			return &globalUsers[0], nil
+		}
+		for _, u := range globalUsers {
+			if strings.EqualFold(u.EmailAddress, trimmed) || strings.EqualFold(u.DisplayName, trimmed) {
+				return &u, nil
+			}
+		}
+		var candidates []string
+		for _, u := range globalUsers {
+			candidates = append(candidates, fmt.Sprintf("%s (%s)", u.DisplayName, u.EmailAddress))
+		}
+		return nil, fmt.Errorf("다중 사용자가 검색되었습니다: %s (더 구체적인 이메일을 입력하세요)", strings.Join(candidates, ", "))
+	}
+
+	return nil, fmt.Errorf("일치하는 Jira 사용자를 찾을 수 없습니다: '%s'", trimmed)
 }
 
 // UpdateIssueLabels updates the labels of an existing issue.

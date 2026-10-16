@@ -705,3 +705,186 @@ func TestClient_DeleteIssue(t *testing.T) {
 		t.Fatalf("DeleteIssue failed: %v", err)
 	}
 }
+
+func TestClient_GetMyself(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/rest/api/3/myself" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"accountId": "acc-12345",
+			"displayName": "Test User",
+			"emailAddress": "test@example.com",
+			"active": true
+		}`))
+	})
+
+	client, server := setupTestClient(t, handler)
+	defer server.Close()
+
+	user, err := client.GetMyself(context.Background())
+	if err != nil {
+		t.Fatalf("GetMyself failed: %v", err)
+	}
+	if user.AccountID != "acc-12345" || user.DisplayName != "Test User" || user.EmailAddress != "test@example.com" {
+		t.Errorf("unexpected user: %+v", user)
+	}
+}
+
+func TestClient_SearchGlobalUsers(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/rest/api/3/users/search" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if r.URL.Query().Get("query") != "alice" {
+			t.Errorf("expected query=alice, got %s", r.URL.Query().Get("query"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"accountId": "acc-alice", "displayName": "Alice Smith", "emailAddress": "alice@example.com", "active": true}
+		]`))
+	})
+
+	client, server := setupTestClient(t, handler)
+	defer server.Close()
+
+	users, err := client.SearchGlobalUsers(context.Background(), "alice", false)
+	if err != nil {
+		t.Fatalf("SearchGlobalUsers failed: %v", err)
+	}
+	if len(users) != 1 || users[0].AccountID != "acc-alice" {
+		t.Errorf("unexpected users: %+v", users)
+	}
+}
+
+func TestClient_SearchAssignableUsers(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/rest/api/3/user/assignable/search" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if r.URL.Query().Get("project") != "PROJ" {
+			t.Errorf("expected project=PROJ, got %s", r.URL.Query().Get("project"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"accountId": "acc-bob", "displayName": "Bob Jones", "emailAddress": "bob@example.com", "active": true}
+		]`))
+	})
+
+	client, server := setupTestClient(t, handler)
+	defer server.Close()
+
+	users, err := client.SearchAssignableUsers(context.Background(), "PROJ", "bob")
+	if err != nil {
+		t.Fatalf("SearchAssignableUsers failed: %v", err)
+	}
+	if len(users) != 1 || users[0].AccountID != "acc-bob" {
+		t.Errorf("unexpected users: %+v", users)
+	}
+}
+
+func TestClient_AssignIssue(t *testing.T) {
+	t.Run("assign to user", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != "PUT" || r.URL.Path != "/rest/api/3/issue/PROJ-1/assignee" {
+				t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			}
+			var body map[string]interface{}
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["accountId"] != "acc-bob" {
+				t.Errorf("expected accountId acc-bob, got %v", body["accountId"])
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		client, server := setupTestClient(t, handler)
+		defer server.Close()
+
+		err := client.AssignIssue(context.Background(), "PROJ-1", "acc-bob")
+		if err != nil {
+			t.Fatalf("AssignIssue failed: %v", err)
+		}
+	})
+
+	t.Run("unassign", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != "PUT" || r.URL.Path != "/rest/api/3/issue/PROJ-1/assignee" {
+				t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			}
+			var body map[string]interface{}
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["accountId"] != nil {
+				t.Errorf("expected accountId nil, got %v", body["accountId"])
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		client, server := setupTestClient(t, handler)
+		defer server.Close()
+
+		err := client.AssignIssue(context.Background(), "PROJ-1", "")
+		if err != nil {
+			t.Fatalf("AssignIssue failed: %v", err)
+		}
+	})
+}
+
+func TestClient_ResolveUserAccountID(t *testing.T) {
+	t.Run("resolve me", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/rest/api/3/myself" {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"accountId": "acc-me", "displayName": "Me User", "emailAddress": "me@example.com"}`))
+				return
+			}
+			http.NotFound(w, r)
+		})
+
+		client, server := setupTestClient(t, handler)
+		defer server.Close()
+
+		user, err := client.ResolveUserAccountID(context.Background(), "PROJ", "me")
+		if err != nil {
+			t.Fatalf("ResolveUserAccountID failed: %v", err)
+		}
+		if user == nil || user.AccountID != "acc-me" {
+			t.Errorf("unexpected user: %+v", user)
+		}
+	})
+
+	t.Run("resolve none", func(t *testing.T) {
+		client, server := setupTestClient(t, nil)
+		defer server.Close()
+
+		user, err := client.ResolveUserAccountID(context.Background(), "PROJ", "none")
+		if err != nil {
+			t.Fatalf("ResolveUserAccountID failed: %v", err)
+		}
+		if user == nil || user.AccountID != "" {
+			t.Errorf("expected empty AccountID for none, got %+v", user)
+		}
+	})
+
+	t.Run("resolve via assignable search", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/rest/api/3/user/assignable/search" {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`[{"accountId": "acc-user1", "displayName": "User One", "emailAddress": "user1@example.com"}]`))
+				return
+			}
+			http.NotFound(w, r)
+		})
+
+		client, server := setupTestClient(t, handler)
+		defer server.Close()
+
+		user, err := client.ResolveUserAccountID(context.Background(), "PROJ", "user1@example.com")
+		if err != nil {
+			t.Fatalf("ResolveUserAccountID failed: %v", err)
+		}
+		if user == nil || user.AccountID != "acc-user1" {
+			t.Errorf("unexpected user: %+v", user)
+		}
+	})
+}

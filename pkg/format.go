@@ -168,6 +168,34 @@ func PrintIssuesMarkdown(w io.Writer, issues []Issue) {
 	}
 }
 
+// PrintIssuesMarkdownDetailed writes multiple issues with full description and comments in Markdown.
+func PrintIssuesMarkdownDetailed(w io.Writer, issues []Issue) {
+	if len(issues) == 0 {
+		fmt.Fprintln(w, i18n.T("fmt.md.no_issues"))
+		return
+	}
+	for i, issue := range issues {
+		if i > 0 {
+			fmt.Fprintln(w, "\n---")
+		}
+		PrintIssueMarkdown(w, &issue)
+	}
+}
+
+// PrintIssuesTableDetailed prints a detailed list of issues to w.
+func PrintIssuesTableDetailed(w io.Writer, issues []Issue) {
+	if len(issues) == 0 {
+		fmt.Fprintln(w, i18n.T("fmt.table.no_issues"))
+		return
+	}
+	for i, issue := range issues {
+		if i > 0 {
+			fmt.Fprintln(w)
+		}
+		PrintIssueDetail(w, &issue)
+	}
+}
+
 // PrintIssueJSON writes a single issue formatted as indented JSON.
 func PrintIssueJSON(w io.Writer, issue *Issue) error {
 	enc := json.NewEncoder(w)
@@ -248,5 +276,63 @@ func PrintIssueMarkdown(w io.Writer, issue *Issue) {
 			fmt.Fprintln(w)
 		}
 	}
+}
+
+// PrintUsersTable prints a table of users to w.
+func PrintUsersTable(w io.Writer, users []User) {
+	if len(users) == 0 {
+		fmt.Fprintln(w, i18n.T("fmt.users.no_users"))
+		return
+	}
+
+	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(tw, i18n.T("fmt.users.header"))
+	fmt.Fprintln(tw, "----------\t------------\t-----\t------")
+
+	for _, u := range users {
+		email := "-"
+		if u.EmailAddress != "" {
+			email = u.EmailAddress
+		}
+		status := "Active"
+		if !u.Active {
+			status = "Inactive"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", u.DisplayName, email, status, u.AccountID)
+	}
+
+	tw.Flush()
+}
+
+// PrintUsersMarkdown writes users formatted as a Markdown table.
+func PrintUsersMarkdown(w io.Writer, users []User) {
+	if len(users) == 0 {
+		fmt.Fprintln(w, i18n.T("fmt.users.no_users_md"))
+		return
+	}
+
+	fmt.Fprintln(w, "| Display Name | Email | Status | Account ID |")
+	fmt.Fprintln(w, "| :--- | :--- | :--- | :--- |")
+
+	for _, u := range users {
+		name := strings.ReplaceAll(u.DisplayName, "|", "\\|")
+		email := "-"
+		if u.EmailAddress != "" {
+			email = u.EmailAddress
+		}
+		status := "Active"
+		if !u.Active {
+			status = "Inactive"
+		}
+		fmt.Fprintf(w, "| %s | %s | %s | `%s` |\n", name, email, status, u.AccountID)
+	}
+}
+
+// PrintUsersJSON writes users formatted as indented JSON.
+func PrintUsersJSON(w io.Writer, users []User) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	return enc.Encode(users)
 }
 

@@ -7,13 +7,80 @@ tags:
   - log
   - changelog
 status: stable
-timestamp: 2026-10-15T15:33:00+09:00
+timestamp: 2026-10-16T20:53:00+09:00
 verified: true
 ---
 
 # 📜 Jira CLI Knowledge Log
 
 본 문서는 `knowledge/` 번들 내 지식 자산의 생성, 코드 변경에 따른 동기화 및 검증 이력을 기록합니다.
+
+---
+
+## 2026-10-16 (Agent Task Lifecycle Protocol: Automatic In-Progress Transition)
+- **작업 티켓**: [JC-14](https://joincdream.atlassian.net/browse/JC-14) / Agent Guidelines Refinement
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. 에이전트 작업 수명주기(Lifecycle) 프로토콜 정립:
+     - 기존의 '임의 마감 금지(Human Gatekeeper)' 가드레일이 지나치게 방어적으로 작용하여 작업 착수 시에도 상태 전이를 누락하던 문제 해결.
+     - **작업 착수 시 (Task Inception)**: 사용자가 특정 티켓의 작업 착수나 계획 수립을 지시하면 즉시 해당 티켓을 **'진행 중(In Progress)'**으로 자동 전이(`jira move <KEY> "진행 중"`)하여 실시간 가시화 보장.
+     - **작업 마감 시 (Human Gatekeeper)**: 자율 마감 금지 유지, 최종 마감은 인간의 명시적 지시 시에만 완료 처리.
+  2. 에이전트 룰 및 SKILL 동기화:
+     - `.agents/skills/jira/SKILL.md`
+     - `internal/templates/skill.md`
+     - `internal/templates/cursor.mdc`
+     - `internal/templates/claude.md`
+  3. 티켓 반영:
+     - `JC-14` 티켓 상태를 '진행 중'으로 성공적으로 전이.
+- **검증 소스**:
+  - `.agents/skills/jira/SKILL.md`, `internal/templates/`
+
+---
+
+## 2026-10-16 (JC-16: User Search, Assignee Management & Filtering)
+- **작업 티켓**: [JC-16](https://joincdream.atlassian.net/browse/JC-16)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. 사용자 조회 및 담당자 지정/해제 기능 추가:
+     - `jira assign <KEY> <USER>`: 이슈 담당자 할당 (`me`, `none`/`unassigned`, 이메일, 이름 매핑 지원). Jira Cloud REST API v3 GDPR 제약에 따라 `accountId` 기반 자동 변환.
+     - `jira users [flags] [query]`: 인스턴스 전역 사용자 검색 (기본) 및 `--assignable` 플래그를 통한 프로젝트 단위 할당 가능 팀원 검색 지원.
+     - `jira edit <KEY> --assignee <USER>` (`-a`) 및 `jira create ... --assignee <USER>` (`-a`) 담당자 지정 지원.
+     - `jira list --mine`: `--assignee me` 축약 플래그 지원.
+  2. Jira Cloud REST API v3 엔드포인트 연동 (`pkg/client.go`):
+     - `GET /rest/api/3/myself`: 현재 로그인 사용자 조회.
+     - `GET /rest/api/3/users/search`: 전역 사용자 검색.
+     - `GET /rest/api/3/user/assignable/search`: 프로젝트 할당 가능 사용자 검색.
+     - `PUT /rest/api/3/issue/{key}/assignee`: 담당자 변경 및 해제 (`accountId: null`).
+     - `ResolveUserAccountID`: `me`, `none`, 프로젝트 할당 가능 팀원 우선 조회 ➔ 전역 사용자 폴백 및 단일 일치자 자동 식별.
+  3. 포맷터 및 다국어 지원:
+     - `pkg/format.go`: `PrintUsersTable`, `PrintUsersMarkdown`, `PrintUsersJSON` 구현.
+     - `internal/i18n/locales/{ko,en}.json`: `cmd.assign.*`, `cmd.users.*`, `cmd.list.flag_mine`, `fmt.users.*` 추가.
+  4. 테스트 및 실전 검증:
+     - `pkg/client_test.go`, `pkg/format_test.go`, `internal/app/commands_user_test.go` 단위 테스트 작성 (`go test -v ./...` 100% Pass).
+     - 프로젝트 내 모든 열린 티켓(JC-16, JC-15, JC-14, JC-7, JC-6)을 `joinc.dream@gmail.com`에 일괄 할당 완료.
+- **검증 소스**:
+  - `pkg/client.go`, `internal/app/commands_user.go`, `internal/app/commands_issue.go`, `pkg/format.go`, `task/JC-16.md`
+
+---
+
+## 2026-10-16 (JC-13 Extension: Orthogonal --detail Flag & 1-Shot Agent Intelligence)
+- **작업 티켓**: [JC-13](https://joincdream.atlassian.net/browse/JC-13)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. 직교적 `--detail` (`-d`) 플래그 구현:
+     - `pkg/client.go`: `ListIssuesWithOptions` 추가, `--detail` 활성화 시 Jira REST API fields에 `description,comment` 추가.
+     - `internal/app/commands_issue.go`: `ListCommand`에 `--detail`, `-d` 플래그 바인딩.
+     - `pkg/format.go`: `PrintIssuesMarkdownDetailed`, `PrintIssuesTableDetailed` 구현으로 단 1회 호출로 N개 티켓의 상세 설명 및 최근 코멘트 일괄 출력.
+  2. 에이전트 인터랙션 피로 및 N+1 호출 문제 해결:
+     - 상황별 커맨드(`today` 등) 대신 유닉스 철학("작은 시스템 큰 구현")에 입각한 직교적 플래그로 완결.
+     - 에이전트가 사전 탐색(`which`) 및 개별 티켓 `get` 반복 루프 없이 `jira list --assignee me --status open --detail --md` 단 1회 호출로 내 모든 활성 작업 풀 맥락 획득.
+  3. 실무자 멘탈 모델 기반 우선순위 추론 계약 (`SKILL.md` & 내장 템플릿):
+     - 단순 `--due today` 기계적 조회가 아닌, [In Progress 우선 ➔ 마감일/중요도 가중치 ➔ 미착수 작업 추천] 의사결정 휴리스틱 정립.
+     - `internal/templates/{skill.md,cursor.mdc,claude.md}` 및 `.agents/skills/jira/SKILL.md` 동기화.
+  4. 테스트 검증:
+     - `pkg/format_test.go` 및 `internal/app/commands_issue_test.go`에 `--detail` 플래그 및 상세 포맷팅 테스트 추가 (`go test -v ./...` 100% Pass).
+- **검증 소스**:
+  - `pkg/format_test.go`, `internal/app/commands_issue_test.go`, `task/JC-13.md`
 
 ---
 

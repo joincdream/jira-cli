@@ -10,9 +10,10 @@ tags:
   - markdown
   - json
 status: stable
-timestamp: 2026-10-15T15:33:00+09:00
+timestamp: 2026-10-16T20:38:00+09:00
 sources:
   - internal/app/commands_issue.go
+  - internal/app/commands_user.go
   - internal/app/commands_open.go
   - internal/app/commands_agent.go
   - internal/app/commands_report.go
@@ -37,10 +38,12 @@ verified: true
 
 | 기본 명령어 | 별칭 (Aliases) | 소스 위치 | 주요 기능 |
 | :--- | :--- | :--- | :--- |
-| `list` | `ls` | `commands_issue.go` | JQL 검색 및 이슈 목록 조회 (기본: 최근순) |
+| `list` | `ls` | `commands_issue.go` | JQL 검색 및 이슈 목록 조회 (기본: 최근순, `--mine`, `--detail` 지원) |
 | `get` | `view`, `show` | `commands_issue.go` | 이슈 메타데이터, 설명, 하위작업, 코멘트 전체 맥락 조회 |
-| `create` | `new`, `add` | `commands_issue.go` | 신규 티켓(작업, 스토리, 에픽, Subtask, Bug) 생성 |
-| `edit` | `update` | `commands_issue.go` | 기존 티켓(제목, 설명, 라벨, 마감일, 상위키) 수정 |
+| `create` | `new`, `add` | `commands_issue.go` | 신규 티켓 생성 (`-a/--assignee` 지원) |
+| `edit` | `update` | `commands_issue.go` | 기존 티켓 수정 (`-a/--assignee` 지원) |
+| `assign` | - | `commands_issue.go` | 티켓 담당자 할당 및 해제 (`me`, `none`, 이메일, 이름) |
+| `users` | - | `commands_user.go` | Jira 사용자 검색 (기본 인스턴스 전역, `--assignable` 프로젝트 한정) |
 | `move` | `transition`, `status` | `commands_issue.go` | 워크플로 상태 전이 (예: '해야 할 일' → '진행 중' → '완료') |
 | `comment` | - | `commands_issue.go` | 티켓에 코멘트 추가 (ADF 변환 지원) |
 | `transitions` | - | `commands_issue.go` | 해당 티켓에서 전이 가능한 워크플로 상태 ID 및 이름 조회 |
@@ -148,6 +151,7 @@ Jira 관리자 및 실무자가 복잡한 JQL을 직접 작성하지 않고도 �
 | **`--due`** | string | `today`<br>`<=today`<br>`tomorrow`<br>`<=tomorrow`<br>`week`<br>`YYYY-MM-DD`<br>`<=YYYY-MM-DD` | `duedate = endOfDay()`<br>`duedate <= endOfDay()`<br>`duedate = endOfDay('1d')`<br>`duedate <= endOfDay('1d')`<br>`duedate <= endOfWeek()`<br>`duedate = "2026-10-15"`<br>`duedate <= "2026-10-15"` |
 | **`--status`** | string | `open` (기본값)<br>`done`<br>`all` (또는 `*`)<br>특정 상태명 | `statusCategory != Done`<br>`statusCategory = Done`<br>*(상태 조건 생략)*<br>`status = "<value>"` |
 | **`--assignee`, `-a`** | string | `me`<br>`none`<br>특정 사용자/이메일 | `assignee = currentUser()`<br>`assignee is EMPTY`<br>`assignee = "<value>"` |
+| **`--detail`, `-d`** | bool | `true` / `false` | 이슈 본문 설명(`description`) 및 최신 코멘트(`comment`) 포함 (AI 1-Shot 브리핑 지원) |
 
 ### 사용 예시
 ```bash
@@ -162,6 +166,9 @@ jira list --due week
 
 # 머신 리더블 마크다운 포맷과 결합
 jira list --all --due '<=today' --md
+
+# AI 에이전트용 원샷 활성 작업 풀 일괄 조회 (설명 및 코멘트 포함)
+jira list --assignee me --status open --detail --md
 ```
 
 ---

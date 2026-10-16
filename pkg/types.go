@@ -124,6 +124,13 @@ type CreateIssueFields struct {
 	Labels      []string    `json:"labels,omitempty"`
 	DueDate     string      `json:"duedate,omitempty"`
 	Parent      *ParentRef  `json:"parent,omitempty"`
+	Assignee    *UserRef    `json:"assignee,omitempty"`
+}
+
+// UserRef references a user by accountId.
+type UserRef struct {
+	AccountID string `json:"accountId,omitempty"`
+	ID        string `json:"id,omitempty"`
 }
 
 // ProjectRef references a project by key or id.

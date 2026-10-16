@@ -412,3 +412,89 @@ func TestListCommand_FilterFlags(t *testing.T) {
 		}
 	})
 }
+
+func TestListCommand_DetailFlag(t *testing.T) {
+	var capturedFields string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/rest/api/3/search/jql") {
+			capturedFields = r.URL.Query().Get("fields")
+			w.WriteHeader(http.StatusOK)
+			mockIssues := []pkg.Issue{
+				{
+					Key: "JC-10",
+					Fields: pkg.IssueFields{
+						Summary:     "Detailed Issue 10",
+						Description: "Full description text here",
+						Status:      pkg.Status{Name: "진행 중"},
+						IssueType:   pkg.IssueType{Name: "Task"},
+						Project:     pkg.Project{Key: "JC", Name: "Jira Client"},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(pkg.SearchResponse{Issues: mockIssues})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	clientProvider := func() (*pkg.Client, error) {
+		cfg := pkg.Config{
+			InstanceURL: server.URL,
+			Email:       "test@example.com",
+			APIToken:    "token",
+			ProjectKey:  "JC",
+		}
+		return pkg.NewClientWithConfig(cfg), nil
+	}
+
+	app := NewApp("1.5.0", clientProvider, nil)
+
+	t.Run("without --detail", func(t *testing.T) {
+		capturedFields = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"list", "--md"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if strings.Contains(capturedFields, "description") {
+			t.Errorf("expected no description in fields, got %s", capturedFields)
+		}
+		if !strings.Contains(stdout.String(), "| Key | Type | Status |") {
+			t.Errorf("expected table markdown, got: %s", stdout.String())
+		}
+	})
+
+	t.Run("with --detail --md", func(t *testing.T) {
+		capturedFields = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"list", "--detail", "--md"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if !strings.Contains(capturedFields, "description") || !strings.Contains(capturedFields, "comment") {
+			t.Errorf("expected description and comment in fields, got %s", capturedFields)
+		}
+		if !strings.Contains(stdout.String(), "# [JC-10] Detailed Issue 10") {
+			t.Errorf("expected detailed markdown header, got: %s", stdout.String())
+		}
+		if !strings.Contains(stdout.String(), "Full description text here") {
+			t.Errorf("expected description in output, got: %s", stdout.String())
+		}
+	})
+
+	t.Run("with -d alias and --json", func(t *testing.T) {
+		capturedFields = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"list", "-d", "--json"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if !strings.Contains(capturedFields, "description") {
+			t.Errorf("expected description in fields, got %s", capturedFields)
+		}
+		if !strings.Contains(stdout.String(), `"description": "Full description text here"`) {
+			t.Errorf("expected description in JSON, got: %s", stdout.String())
+		}
+	})
+}

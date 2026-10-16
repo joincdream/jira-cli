@@ -76,11 +76,14 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
-	var all bool
+	var all, detail, mine bool
 	var due, status, assignee string
 
 	fs.BoolVar(&all, "all", false, i18n.T("cmd.list.flag_all"))
 	fs.BoolVar(&all, "A", false, i18n.T("cmd.list.flag_all"))
+	fs.BoolVar(&detail, "detail", false, i18n.T("cmd.list.flag_detail"))
+	fs.BoolVar(&detail, "d", false, i18n.T("cmd.list.flag_detail"))
+	fs.BoolVar(&mine, "mine", false, i18n.T("cmd.list.flag_mine"))
 	fs.StringVar(&due, "due", "", i18n.T("cmd.list.flag_due"))
 	fs.StringVar(&status, "status", "", i18n.T("cmd.list.flag_status"))
 	fs.StringVar(&assignee, "assignee", "", i18n.T("cmd.list.flag_assignee"))
@@ -106,6 +109,10 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	posArgs, err := parseFlagsAndPositional(fs, cleanArgs)
 	if err != nil {
 		return err
+	}
+
+	if mine {
+		assignee = "me"
 	}
 
 	client, err := c.clientProvider()
@@ -134,7 +141,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		jql = builtJQL
 	}
 
-	issues, err := client.ListIssues(ctx, jql)
+	issues, err := client.ListIssuesWithOptions(ctx, jql, pkg.ListIssuesOptions{Detail: detail})
 	if err != nil {
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.list.err_fetch", err))
 	}
@@ -143,10 +150,18 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	case "json":
 		return pkg.PrintIssuesJSON(stdout, issues)
 	case "md":
-		pkg.PrintIssuesMarkdown(stdout, issues)
+		if detail {
+			pkg.PrintIssuesMarkdownDetailed(stdout, issues)
+		} else {
+			pkg.PrintIssuesMarkdown(stdout, issues)
+		}
 		return nil
 	default:
-		pkg.PrintIssuesTable(stdout, issues)
+		if detail {
+			pkg.PrintIssuesTableDetailed(stdout, issues)
+		} else {
+			pkg.PrintIssuesTable(stdout, issues)
+		}
 		return nil
 	}
 }
@@ -220,7 +235,7 @@ func (c *CreateCommand) Execute(ctx context.Context, args []string, stdout, stde
 	fs := flag.NewFlagSet("create", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
-	var desc, issueType, due, project, parent, labelsStr string
+	var desc, issueType, due, project, parent, labelsStr, assigneeStr string
 	var forceLabels, allowEmptyDesc bool
 
 	fs.StringVar(&desc, "d", "", i18n.T("cmd.create.flag_desc"))
@@ -234,6 +249,8 @@ func (c *CreateCommand) Execute(ctx context.Context, args []string, stdout, stde
 	fs.StringVar(&project, "p", "", i18n.T("cmd.create.flag_project"))
 	fs.StringVar(&project, "project", "", i18n.T("cmd.create.flag_project"))
 	fs.StringVar(&parent, "parent", "", i18n.T("cmd.create.flag_parent"))
+	fs.StringVar(&assigneeStr, "a", "", i18n.T("cmd.create.flag_assignee"))
+	fs.StringVar(&assigneeStr, "assignee", "", i18n.T("cmd.create.flag_assignee"))
 	fs.BoolVar(&forceLabels, "force-labels", false, i18n.T("cmd.create.flag_force_labels"))
 	fs.BoolVar(&allowEmptyDesc, "allow-empty-desc", false, i18n.T("cmd.create.flag_allow_empty_desc"))
 
@@ -305,7 +322,25 @@ func (c *CreateCommand) Execute(ctx context.Context, args []string, stdout, stde
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
-	resp, err := client.CreateIssue(ctx, project, summary, desc, issueType, due, parent, labels)
+	var assigneeAccountID string
+	if assigneeStr != "" {
+		resolvedUser, err := client.ResolveUserAccountID(ctx, project, assigneeStr)
+		if err != nil {
+			return err
+		}
+		assigneeAccountID = resolvedUser.AccountID
+	}
+
+	resp, err := client.CreateIssueWithOptions(ctx, pkg.CreateIssueOptions{
+		ProjectKey:        project,
+		Summary:           summary,
+		Description:       desc,
+		IssueTypeName:     issueType,
+		DueDate:           due,
+		ParentKey:         parent,
+		Labels:            labels,
+		AssigneeAccountID: assigneeAccountID,
+	})
 	if err != nil {
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_api_create", err))
 	}
@@ -336,7 +371,7 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	fs := flag.NewFlagSet("edit", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
-	var labelsStr, dueStr, parentStr, summaryStr, descStr string
+	var labelsStr, dueStr, parentStr, summaryStr, descStr, assigneeStr string
 	var forceLabels bool
 	fs.StringVar(&labelsStr, "l", "", i18n.T("cmd.create.flag_labels"))
 	fs.StringVar(&labelsStr, "labels", "", i18n.T("cmd.create.flag_labels"))
@@ -347,6 +382,8 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	fs.StringVar(&descStr, "d", "", i18n.T("cmd.create.flag_desc"))
 	fs.StringVar(&descStr, "desc", "", i18n.T("cmd.create.flag_desc"))
 	fs.StringVar(&descStr, "description", "", i18n.T("cmd.create.flag_desc"))
+	fs.StringVar(&assigneeStr, "a", "", i18n.T("cmd.create.flag_assignee"))
+	fs.StringVar(&assigneeStr, "assignee", "", i18n.T("cmd.create.flag_assignee"))
 	fs.BoolVar(&forceLabels, "force-labels", false, i18n.T("cmd.create.flag_force_labels"))
 
 	fs.Usage = func() {
@@ -384,7 +421,7 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		return found
 	}
 
-	if !isSet("l", "labels", "due", "parent", "s", "summary", "d", "desc", "description") {
+	if !isSet("l", "labels", "due", "parent", "s", "summary", "d", "desc", "description", "a", "assignee") {
 		return fmt.Errorf("%s", i18n.T("cmd.edit.err_no_fields_to_update"))
 	}
 
@@ -458,6 +495,20 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	client, err := c.clientProvider()
 	if err != nil {
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
+	}
+
+	if isSet("a", "assignee") {
+		resolvedUser, err := client.ResolveUserAccountID(ctx, client.GetConfig().ProjectKey, assigneeStr)
+		if err != nil {
+			return err
+		}
+		opts.AssigneeAccountID = &resolvedUser.AccountID
+		opts.UpdateAssignee = true
+		if resolvedUser.AccountID == "" {
+			updatedItems = append(updatedItems, i18n.T("cmd.edit.item_assignee_cleared"))
+		} else {
+			updatedItems = append(updatedItems, i18n.Sprintf("cmd.edit.item_assignee_updated", resolvedUser.DisplayName))
+		}
 	}
 
 	if err := client.UpdateIssue(ctx, key, opts); err != nil {
@@ -621,5 +672,74 @@ func (c *DeleteCommand) Execute(ctx context.Context, args []string, stdout, stde
 	}
 
 	fmt.Fprintf(stdout, i18n.Sprintf("cmd.delete.success", key))
+	return nil
+}
+
+// AssignCommand sets or clears the assignee of an issue.
+type AssignCommand struct {
+	clientProvider ClientProvider
+}
+
+// NewAssignCommand creates a new AssignCommand.
+func NewAssignCommand(cp ClientProvider) *AssignCommand {
+	return &AssignCommand{clientProvider: cp}
+}
+
+func (c *AssignCommand) Name() string        { return "assign" }
+func (c *AssignCommand) Aliases() []string  { return nil }
+func (c *AssignCommand) Description() string { return i18n.T("cmd.assign.desc") }
+
+func (c *AssignCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("assign", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
+	fs.Usage = func() {
+		fmt.Fprintln(stdout, i18n.T("cmd.assign.usage"))
+		fs.SetOutput(stdout)
+		fs.PrintDefaults()
+		fs.SetOutput(stderr)
+	}
+
+	if isHelpRequested(args) {
+		fs.Usage()
+		return nil
+	}
+
+	posArgs, err := parseFlagsAndPositional(fs, args)
+	if err != nil {
+		return err
+	}
+
+	if len(posArgs) < 2 {
+		return fmt.Errorf("%s", i18n.T("cmd.assign.err_missing_args"))
+	}
+
+	key := strings.ToUpper(strings.TrimSpace(posArgs[0].Value))
+	userQuery := strings.TrimSpace(posArgs[1].Value)
+
+	client, err := c.clientProvider()
+	if err != nil {
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
+	}
+
+	resolvedUser, err := client.ResolveUserAccountID(ctx, client.GetConfig().ProjectKey, userQuery)
+	if err != nil {
+		return err
+	}
+
+	if err := client.AssignIssue(ctx, key, resolvedUser.AccountID); err != nil {
+		return fmt.Errorf("%s", i18n.Sprintf("cmd.assign.err_failed", key, err))
+	}
+
+	if resolvedUser.AccountID == "" {
+		fmt.Fprintf(stdout, i18n.Sprintf("cmd.assign.success_cleared", key))
+	} else {
+		userInfo := resolvedUser.DisplayName
+		if resolvedUser.EmailAddress != "" {
+			userInfo = fmt.Sprintf("%s (%s)", resolvedUser.DisplayName, resolvedUser.EmailAddress)
+		}
+		fmt.Fprintf(stdout, i18n.Sprintf("cmd.assign.success", key, userInfo))
+	}
+
 	return nil
 }
