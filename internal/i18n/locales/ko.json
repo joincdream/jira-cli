@@ -25,6 +25,8 @@
   "cmd.common.err_client_init": "Jira 클라이언트 초기화 오류: %w",
   "cmd.common.err_output_flag_missing_format": "-o / --output 플래그에 포맷(table, json, md)을 지정하세요",
   "cmd.common.err_unsupported_output_format": "지원하지 않는 출력 포맷: '%s' (지원 포맷: table, json, md)",
+  "cmd.common.err_git_context_required": "현재 환경에서 Git 브랜치를 확인할 수 없습니다. 이슈 키를 명시적으로 입력해 주세요.",
+  "cmd.common.err_no_issue_key_in_branch": "현재 Git 브랜치('%s')에서 Jira 이슈 키를 감지하지 못했습니다. 키를 직접 지정해 주세요.",
   "cmd.list.desc": "Jira 이슈 목록을 조회합니다.",
   "cmd.list.usage": "사용법: jira list [JQL] [--all|-A] [--due <EXPR>] [--status <STATUS>] [--assignee|-a <USER>] [--detail|-d] [-o table|json|md] [--json] [--md]\nJira 이슈 목록을 조회합니다. (예: jira list --all --due <=today --detail --md)",
   "cmd.list.flag_all": "전체 프로젝트 범위로 조회 (기본 project_key 필터 해제)",

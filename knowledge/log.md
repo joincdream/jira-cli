@@ -17,6 +17,32 @@ verified: true
 
 ---
 
+## 2026-10-17 (JC-14: Git Branch Context Auto-Binding / Zero-Argument Ticket Binding)
+- **작업 티켓**: [JC-14](https://joincdream.atlassian.net/browse/JC-14)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. Git 브랜치 탐색 및 티켓 키 자동 추출 엔진 구현 (`pkg/git.go`, `pkg/git_test.go`):
+     - `GetCurrentBranch`: 1차 `git rev-parse --abbrev-ref HEAD` (1초 타임아웃), 2차 `.git/HEAD` 직접 파싱 (Zero Subprocess).
+     - `ExtractIssueKey`: 브랜치명에서 대소문자 무관 Jira 키 추출 및 대문자 정규화.
+     - `ResolveIssueKey`: 명시적 키 우선, 생략 시 현재 Git 브랜치에서 키 자동 감지.
+  2. 주요 서브커맨드 Zero-Argument 바인딩 (`internal/app/commands_issue.go`, `internal/app/commands_open.go`):
+     - `jira get`: 키 생략 시 브랜치 키 상세 정보 조회
+     - `jira transitions`: 키 생략 시 브랜치 키 워크플로 전이 목록 조회
+     - `jira move <STATUS>`: 첫 번째 인자가 키가 아니면 브랜치 키를 타깃으로 상태 전이
+     - `jira comment <MSG>`: 첫 번째 인자가 키가 아니면 브랜치 키에 코멘트 등록
+     - `jira assign <USER>`: 인자 1개 시 브랜치 키에 담당자 지정
+     - `jira edit [flags]`: 키 생략 시 브랜치 키 수정
+     - `jira open`: 키 생략 시 브랜치 키가 있으면 이슈 웹페이지 오픈, 없으면 프로젝트 보드 오픈
+  3. 다국어 및 에러 가이드 강화 (`internal/i18n/locales/{ko,en}.json`):
+     - `cmd.common.err_git_context_required`, `cmd.common.err_no_issue_key_in_branch` 추가.
+  4. 테스트 검증:
+     - `pkg/git_test.go`, `internal/app/commands_issue_test.go` 내 `TestJC14_GitBranchContextBinding` 작성.
+     - `go test -v ./...` 100% Pass 및 `make install` 배포 완료.
+- **검증 소스**:
+  - `pkg/git.go`, `internal/app/commands_issue.go`, `internal/app/commands_open.go`, `knowledge/commands-and-routing.md`
+
+---
+
 ## 2026-10-16 (Agent Task Lifecycle Protocol: Automatic In-Progress Transition)
 - **작업 티켓**: [JC-14](https://joincdream.atlassian.net/browse/JC-14) / Agent Guidelines Refinement
 - **작성자**: Antigravity AI Assistant & 윤상배

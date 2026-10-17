@@ -498,3 +498,193 @@ func TestListCommand_DetailFlag(t *testing.T) {
 		}
 	})
 }
+
+func TestJC14_GitBranchContextBinding(t *testing.T) {
+	var requestedIssueKey string
+	var transitionIssueKey string
+	var commentIssueKey string
+	var assignIssueKey, assignAccountID string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/rest/api/3/myself":
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(pkg.User{
+				AccountID:   "acc-me-123",
+				DisplayName: "Current User",
+				EmailAddress: "me@example.com",
+			})
+		case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") && strings.HasSuffix(r.URL.Path, "/transitions"):
+			parts := strings.Split(r.URL.Path, "/")
+			requestedIssueKey = parts[5]
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"transitions": []map[string]interface{}{
+					{"id": "21", "name": "진행 중", "to": map[string]interface{}{"name": "진행 중"}},
+				},
+			})
+		case r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") && strings.HasSuffix(r.URL.Path, "/transitions"):
+			parts := strings.Split(r.URL.Path, "/")
+			transitionIssueKey = parts[5]
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") && strings.HasSuffix(r.URL.Path, "/comment"):
+			parts := strings.Split(r.URL.Path, "/")
+			commentIssueKey = parts[5]
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(map[string]interface{}{"id": "1001"})
+		case r.Method == "PUT" && strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") && strings.HasSuffix(r.URL.Path, "/assignee"):
+			parts := strings.Split(r.URL.Path, "/")
+			assignIssueKey = parts[5]
+			var body map[string]interface{}
+			json.NewDecoder(r.Body).Decode(&body)
+			if acc, ok := body["accountId"].(string); ok {
+				assignAccountID = acc
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/"):
+			parts := strings.Split(r.URL.Path, "/")
+			requestedIssueKey = parts[5]
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(pkg.Issue{
+				Key: requestedIssueKey,
+				Fields: pkg.IssueFields{
+					Summary: "Mock Issue for " + requestedIssueKey,
+					Status:  pkg.Status{Name: "To Do"},
+				},
+			})
+		default:
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{}`))
+		}
+	}))
+	defer server.Close()
+
+	clientProvider := func() (*pkg.Client, error) {
+		cfg := pkg.Config{
+			InstanceURL: server.URL,
+			Email:       "test@example.com",
+			APIToken:    "token",
+			ProjectKey:  "JC",
+		}
+		return pkg.NewClientWithConfig(cfg), nil
+	}
+
+	app := NewApp("1.5.0", clientProvider, nil)
+
+	// Save original resolver
+	origResolver := pkg.GitBranchResolver
+	defer func() { pkg.GitBranchResolver = origResolver }()
+
+	// 1. Mock branch with ticket key
+	pkg.GitBranchResolver = func(ctx context.Context) (string, error) {
+		return "feature/JC-14-git-context-binding", nil
+	}
+
+	t.Run("zero-argument jira get uses branch issue key", func(t *testing.T) {
+		requestedIssueKey = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"get", "--md"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if requestedIssueKey != "JC-14" {
+			t.Errorf("expected requested key JC-14, got %s", requestedIssueKey)
+		}
+		if !strings.Contains(stdout.String(), "# [JC-14]") {
+			t.Errorf("expected markdown header for JC-14, got: %s", stdout.String())
+		}
+	})
+
+	t.Run("explicit key argument overrides branch key in get", func(t *testing.T) {
+		requestedIssueKey = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"get", "JC-99", "--md"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if requestedIssueKey != "JC-99" {
+			t.Errorf("expected requested key JC-99, got %s", requestedIssueKey)
+		}
+	})
+
+	t.Run("zero-argument jira transitions uses branch key", func(t *testing.T) {
+		requestedIssueKey = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"transitions"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if requestedIssueKey != "JC-14" {
+			t.Errorf("expected requested key JC-14, got %s", requestedIssueKey)
+		}
+	})
+
+	t.Run("jira move <STATUS> with zero key uses branch key", func(t *testing.T) {
+		transitionIssueKey = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"move", "진행 중"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if transitionIssueKey != "JC-14" {
+			t.Errorf("expected transition key JC-14, got %s", transitionIssueKey)
+		}
+	})
+
+	t.Run("jira move <KEY> <STATUS> explicit key takes precedence", func(t *testing.T) {
+		transitionIssueKey = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"move", "JC-77", "진행 중"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if transitionIssueKey != "JC-77" {
+			t.Errorf("expected transition key JC-77, got %s", transitionIssueKey)
+		}
+	})
+
+	t.Run("jira comment <MSG> with zero key uses branch key", func(t *testing.T) {
+		commentIssueKey = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"comment", "코드 구현 완료했습니다."}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if commentIssueKey != "JC-14" {
+			t.Errorf("expected comment key JC-14, got %s", commentIssueKey)
+		}
+	})
+
+	t.Run("jira assign me with zero key uses branch key", func(t *testing.T) {
+		assignIssueKey = ""
+		assignAccountID = ""
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"assign", "me"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d. stderr: %s", code, stderr.String())
+		}
+		if assignIssueKey != "JC-14" {
+			t.Errorf("expected assign key JC-14, got %s", assignIssueKey)
+		}
+		if assignAccountID != "acc-me-123" {
+			t.Errorf("expected assign account ID acc-me-123, got %s", assignAccountID)
+		}
+	})
+
+	// 2. Mock branch with NO ticket key (e.g. main)
+	pkg.GitBranchResolver = func(ctx context.Context) (string, error) {
+		return "main", nil
+	}
+
+	t.Run("jira get on main branch without key returns error with guidance", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		code := app.Run(context.Background(), []string{"get"}, &stdout, &stderr)
+		if code == 0 {
+			t.Fatalf("expected non-zero exit code on main branch without key, got 0")
+		}
+		if !strings.Contains(stderr.String(), "감지하지 못했습니다") {
+			t.Errorf("expected guidance message in stderr, got: %s", stderr.String())
+		}
+	})
+}
+

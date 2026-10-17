@@ -190,11 +190,16 @@ func (c *GetCommand) Execute(ctx context.Context, args []string, stdout, stderr 
 		return err
 	}
 
-	if len(cleanArgs) < 1 {
-		return fmt.Errorf("%s", i18n.T("cmd.get.err_missing_key"))
+	var explicitKey string
+	if len(cleanArgs) > 0 {
+		explicitKey = cleanArgs[0]
 	}
 
-	key := strings.ToUpper(cleanArgs[0])
+	key, err := pkg.ResolveIssueKey(ctx, explicitKey)
+	if err != nil {
+		return err
+	}
+
 	client, err := c.clientProvider()
 	if err != nil {
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
@@ -403,11 +408,15 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		return err
 	}
 
-	if len(posArgs) < 1 {
-		return fmt.Errorf("%s", i18n.T("cmd.edit.err_missing_key"))
+	var explicitKey string
+	if len(posArgs) > 0 {
+		explicitKey = posArgs[0].Value
 	}
 
-	key := strings.ToUpper(strings.TrimSpace(posArgs[0].Value))
+	key, err := pkg.ResolveIssueKey(ctx, explicitKey)
+	if err != nil {
+		return err
+	}
 
 	isSet := func(names ...string) bool {
 		found := false
@@ -538,12 +547,25 @@ func (c *MoveCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		return nil
 	}
 
-	if len(args) < 2 {
+	if len(args) == 0 {
 		return fmt.Errorf("%s", i18n.T("cmd.move.err_missing_args"))
 	}
 
-	key := strings.ToUpper(args[0])
-	targetStatus := strings.Join(args[1:], " ")
+	var key, targetStatus string
+	if pkg.IsIssueKey(args[0]) {
+		if len(args) < 2 {
+			return fmt.Errorf("%s", i18n.T("cmd.move.err_missing_args"))
+		}
+		key = strings.ToUpper(args[0])
+		targetStatus = strings.Join(args[1:], " ")
+	} else {
+		resolvedKey, err := pkg.ResolveIssueKey(ctx, "")
+		if err != nil {
+			return err
+		}
+		key = resolvedKey
+		targetStatus = strings.Join(args, " ")
+	}
 
 	client, err := c.clientProvider()
 	if err != nil {
@@ -577,12 +599,25 @@ func (c *CommentCommand) Execute(ctx context.Context, args []string, stdout, std
 		return nil
 	}
 
-	if len(args) < 2 {
+	if len(args) == 0 {
 		return fmt.Errorf("%s", i18n.T("cmd.comment.err_missing_args"))
 	}
 
-	key := strings.ToUpper(args[0])
-	message := strings.Join(args[1:], " ")
+	var key, message string
+	if pkg.IsIssueKey(args[0]) {
+		if len(args) < 2 {
+			return fmt.Errorf("%s", i18n.T("cmd.comment.err_missing_args"))
+		}
+		key = strings.ToUpper(args[0])
+		message = strings.Join(args[1:], " ")
+	} else {
+		resolvedKey, err := pkg.ResolveIssueKey(ctx, "")
+		if err != nil {
+			return err
+		}
+		key = resolvedKey
+		message = strings.Join(args, " ")
+	}
 
 	client, err := c.clientProvider()
 	if err != nil {
@@ -616,11 +651,15 @@ func (c *TransitionsCommand) Execute(ctx context.Context, args []string, stdout,
 		return nil
 	}
 
-	if len(args) < 1 {
-		return fmt.Errorf("%s", i18n.T("cmd.transitions.err_missing_key"))
+	var explicitKey string
+	if len(args) > 0 {
+		explicitKey = args[0]
 	}
 
-	key := strings.ToUpper(args[0])
+	key, err := pkg.ResolveIssueKey(ctx, explicitKey)
+	if err != nil {
+		return err
+	}
 	client, err := c.clientProvider()
 	if err != nil {
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
@@ -710,12 +749,36 @@ func (c *AssignCommand) Execute(ctx context.Context, args []string, stdout, stde
 		return err
 	}
 
-	if len(posArgs) < 2 {
+	if len(posArgs) == 0 {
 		return fmt.Errorf("%s", i18n.T("cmd.assign.err_missing_args"))
 	}
 
-	key := strings.ToUpper(strings.TrimSpace(posArgs[0].Value))
-	userQuery := strings.TrimSpace(posArgs[1].Value)
+	var key, userQuery string
+	if len(posArgs) == 1 {
+		userQuery = strings.TrimSpace(posArgs[0].Value)
+		resolvedKey, err := pkg.ResolveIssueKey(ctx, "")
+		if err != nil {
+			return err
+		}
+		key = resolvedKey
+	} else {
+		first := strings.TrimSpace(posArgs[0].Value)
+		if pkg.IsIssueKey(first) {
+			key = strings.ToUpper(first)
+			userQuery = strings.TrimSpace(posArgs[1].Value)
+		} else {
+			resolvedKey, err := pkg.ResolveIssueKey(ctx, "")
+			if err != nil {
+				return err
+			}
+			key = resolvedKey
+			var parts []string
+			for _, p := range posArgs {
+				parts = append(parts, p.Value)
+			}
+			userQuery = strings.TrimSpace(strings.Join(parts, " "))
+		}
+	}
 
 	client, err := c.clientProvider()
 	if err != nil {

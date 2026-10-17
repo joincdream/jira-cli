@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"tools/jira/internal/i18n"
+	"tools/jira/pkg"
 )
 
 // BrowserLauncher defines a function signature for launching the system browser.
@@ -83,6 +84,14 @@ func (c *OpenCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	var targetKey string
 	if len(posArgs) > 0 {
 		targetKey = posArgs[0].Value
+	} else {
+		// Zero-argument: check if current git branch contains an issue key
+		branch, err := pkg.GetCurrentBranch(ctx)
+		if err == nil {
+			if key, ok := pkg.ExtractIssueKey(branch); ok {
+				targetKey = key
+			}
+		}
 	}
 
 	targetURL := BuildTargetURL(cfg.InstanceURL, cfg.ProjectKey, targetKey)

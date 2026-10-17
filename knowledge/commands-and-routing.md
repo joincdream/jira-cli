@@ -10,7 +10,7 @@ tags:
   - markdown
   - json
 status: stable
-timestamp: 2026-10-16T20:38:00+09:00
+timestamp: 2026-10-17T11:45:00+09:00
 sources:
   - internal/app/commands_issue.go
   - internal/app/commands_user.go
@@ -23,6 +23,8 @@ sources:
   - internal/i18n/i18n.go
   - pkg/format.go
   - pkg/format_test.go
+  - pkg/git.go
+  - pkg/git_test.go
 verified: true
 ---
 
@@ -186,6 +188,30 @@ jira list --assignee me --status open --detail --md
   * `-p`, `--project <KEY>`: 특정 프로젝트 지정
   * `-a`, `--assignee <USER>`: 특정 담당자 필터 (`me`, `none`, 또는 사용자명)
   * `--period <week|month|all>`: 집계 대상 기간 (기본값: `week`)
+
+---
+
+## 🌿 8. Git 브랜치 컨텍스트 자동 바인딩 (Zero-Argument Ticket Binding)
+
+개발자가 특정 이슈 브랜치(예: `feature/JC-14-git-binding`, `fix/JC-6-transition-error`)에서 작업 중일 때, 티켓 키 인수를 생략해도 CLI가 현재 Git 브랜치에서 이슈 키를 자동으로 추출하여 실행하는 무마찰(Zero-Argument) 인터페이스입니다.
+
+### 1) 동작 규칙 및 인수 우선순위
+1. **명시적 키 최우선**: 사용자가 명령어 인자로 티켓 키를 명시하면(예: `jira get JC-3`) 브랜치 키를 무시하고 명시된 키를 최우선 적용합니다.
+2. **키 인수 생략 시 자동 감지**:
+   - `jira get`: 브랜치 키의 상세 정보 조회 (`jira get --md`)
+   - `jira transitions`: 브랜치 키의 워크플로 전이 목록 조회
+   - `jira move <STATUS>`: 첫 번째 인자가 이슈 키 형식이 아니면 브랜치 키를 타깃으로 상태 전이
+   - `jira comment <MSG>`: 첫 번째 인자가 이슈 키 형식이 아니면 브랜치 키에 코멘트 등록
+   - `jira assign <USER>`: 인자가 1개일 때 브랜치 키를 대상으로 담당자 지정 (`jira assign me`)
+   - `jira edit [flags]`: 키 생략 시 브랜치 키의 필드 수정
+   - `jira open`: 키 생략 시 브랜치 키가 있으면 이슈 웹페이지 오픈, 없으면 프로젝트 보드 오픈
+3. **탐색 메커니즘 (`pkg/git.go`)**:
+   - 1차: `git rev-parse --abbrev-ref HEAD` (타임아웃 1초)
+   - 2차 Fallback: `.git/HEAD` 파일 직접 파싱 (Zero Subprocess)
+   - 정규식 추출: `(?i)(?:^|[^A-Za-z0-9])([A-Za-z][A-Za-z0-9_]*-[0-9]+)(?:[^0-9]|$)`
+4. **가이드 에러 안내**:
+   - 키가 없는 브랜치(예: `main`, `master`)나 비-Git 저장소에서 키 없이 실행 시 직관적인 액션 가이드 에러를 출력하고 Exit code 1을 반환합니다.
+
 
 
 

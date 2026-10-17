@@ -243,7 +243,7 @@ func TestApp_Run_CommandMissingArgs(t *testing.T) {
 		{
 			name:        "get without key",
 			args:        []string{"get"},
-			expectedErr: "사용법: jira get <KEY>",
+			expectedErr: "감지하지 못했습니다",
 		},
 		{
 			name:        "create without summary",
@@ -253,7 +253,7 @@ func TestApp_Run_CommandMissingArgs(t *testing.T) {
 		{
 			name:        "edit without key",
 			args:        []string{"edit"},
-			expectedErr: "사용법: jira edit <KEY>",
+			expectedErr: "감지하지 못했습니다",
 		},
 		{
 			name:        "move without args",
@@ -268,7 +268,7 @@ func TestApp_Run_CommandMissingArgs(t *testing.T) {
 		{
 			name:        "transitions without key",
 			args:        []string{"transitions"},
-			expectedErr: "사용법: jira transitions <KEY>",
+			expectedErr: "감지하지 못했습니다",
 		},
 		{
 			name:        "delete without key",
@@ -304,11 +304,11 @@ func TestApp_Run_Aliases(t *testing.T) {
 		alias       string
 		expectedErr string
 	}{
-		{"view", "사용법: jira get <KEY>"},
-		{"show", "사용법: jira get <KEY>"},
+		{"view", "감지하지 못했습니다"},
+		{"show", "감지하지 못했습니다"},
 		{"new", "사용법: jira create <SUMMARY>"},
 		{"add", "사용법: jira create <SUMMARY>"},
-		{"update", "사용법: jira edit <KEY>"},
+		{"update", "감지하지 못했습니다"},
 		{"transition", "사용법: jira move <KEY> <STATUS>"},
 		{"status", "사용법: jira move <KEY> <STATUS>"},
 		{"rm", "사용법: jira delete <KEY>"},
