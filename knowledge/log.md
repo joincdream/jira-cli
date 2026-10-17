@@ -15,6 +15,38 @@ verified: true
 
 본 문서는 `knowledge/` 번들 내 지식 자산의 생성, 코드 변경에 따른 동기화 및 검증 이력을 기록합니다.
 
+## 2026-10-17 (JC-17: TUI Real-time Dashboard & Shared SQLite Cache Engine)
+- **작업 티켓**: [JC-17](https://joincdream.atlassian.net/browse/JC-17)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. Pure Go SQLite 공유 로컬 캐시 엔진 구현 (`pkg/cache.go`, `pkg/cache_test.go`):
+     - `modernc.org/sqlite` 드라이버 채택 (`CGO_ENABLED=0` 100% 순수 Go 호환).
+     - `~/.cache/jira/state.db` 단일 통합 DB 내 멀티 스페이스 인덱싱 (`spaces`, `issues`, `activities`, `active_context`).
+     - WAL 모드 및 5000ms busy_timeout 활성화로 고성능 읽기/쓰기 동시성 보장.
+     - `UpsertIssues`, `GetIssues`, `LogActivity`, `SetActiveIssue`, `PruneDeletedIssues` CRUD 지원.
+  2. SWR 증분 감시 및 In-Memory Diffing 엔진 구현 (`pkg/watch.go`, `pkg/watch_test.go`):
+     - Stale-While-Revalidate 패턴: 기동 시 0ms 즉시 이전 로컬 스냅샷 메모리 로드.
+     - 백그라운드 증분 폴링 및 In-Memory Diffing: `old.Status != new.Status` (상태 전이), `len(new.Comments) > len(old.Comments)` (코멘트 추가), `new.Assignee == me` (할당) 정밀 감지.
+     - 적응형 백오프(15s ➔ 30s ➔ 60s) 및 HTTP 429 방어.
+     - 장기 부재(7일 이상 휴가 등) 감지 시 Welcome Back 복귀 브리핑 카드 (`CatchupDigest`) 생성.
+  3. Bubble Tea + Lip Gloss TUI 콕핏 구현 (`internal/tui/model.go`, `internal/tui/view.go`, `internal/tui/tui_test.go`):
+     - Elm MUV 아키텍처, 더블 버퍼링, UTF-8 2칸 한글 줄맞춤 및 터미널 반응형 리사이즈 지원.
+     - 좌측 활성 이슈 목록 (42%), 우측 상단 티켓 상세 (55%), 우측 하단 실시간 변경 피드 (45%).
+     - 단축키: `↑/↓`, `j/k`(이동), `r`(즉시 동기화), `o`(브라우저 열기), `c`(활성 티켓 설정), `ESC`(브리핑 닫기), `q`(종료).
+     - `tea.WithAltScreen()` 적용으로 종료 시 터미널 화면 완벽 원복.
+  4. CLI 서브커맨드 연동 (`internal/app/commands_tui.go`, `internal/app/commands_issue.go`):
+     - `jira tui`: TUI 콕핏 실행.
+     - `jira watch`: 터미널 실시간 스트리밍 (`--json` 지원).
+     - `jira use <KEY>`: 활성 티켓 컨텍스트 설정 (`main` 브랜치에서도 Zero-Argument 타깃 바인딩 3순위 Fallback 연계).
+     - `jira list --cached`, `jira get --cached`: 오프라인 초고속 0ms 로컬 캐시 조회.
+     - `jira cache status`, `jira cache clean`: 캐시 관리.
+  5. 테스트 및 검증:
+     - `go test -v ./...` 100% Pass (단위 테스트 및 통합 Mock 테스트).
+     - `CGO_ENABLED=0 GOOS=linux go build ./...` 및 `CGO_ENABLED=0 GOOS=darwin go build ./...` 크로스 컴파일 성공.
+     - `make install` 배포 완료.
+- **검증 소스**:
+  - `pkg/cache.go`, `pkg/watch.go`, `internal/tui/*`, `internal/app/commands_tui.go`, `internal/app/commands_issue.go`
+
 ---
 
 ## 2026-10-17 (JC-14: Git Branch Context Auto-Binding / Zero-Argument Ticket Binding)

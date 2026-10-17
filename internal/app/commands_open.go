@@ -103,10 +103,10 @@ func (c *OpenCommand) Execute(ctx context.Context, args []string, stdout, stderr
 
 	cmdName, cmdArgs := BuildBrowserCommand(targetURL, customBrowser, c.goos)
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.open.opening", targetURL))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.open.opening", targetURL))
 
 	if err := c.launcher(ctx, cmdName, cmdArgs); err != nil {
-		fmt.Fprintf(stderr, i18n.Sprintf("cmd.open.fallback", targetURL))
+		fmt.Fprint(stderr, i18n.Sprintf("cmd.open.fallback", targetURL))
 		return nil
 	}
 

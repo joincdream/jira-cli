@@ -84,21 +84,21 @@ func PrintIssueDetail(w io.Writer, issue *Issue) {
 		labels = strings.Join(issue.Fields.Labels, ", ")
 	}
 
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_project", issue.Fields.Project.Name, issue.Fields.Project.Key))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_type", issue.Fields.IssueType.Name))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_status", issue.Fields.Status.Name))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_labels", labels))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_assignee", assignee))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_reporter", reporter))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_due", dueDate))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_created", issue.Fields.Created))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.detail.field_updated", issue.Fields.Updated))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_project", issue.Fields.Project.Name, issue.Fields.Project.Key))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_type", issue.Fields.IssueType.Name))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_status", issue.Fields.Status.Name))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_labels", labels))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_assignee", assignee))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_reporter", reporter))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_due", dueDate))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_created", issue.Fields.Created))
+	fmt.Fprint(w, i18n.Sprintf("fmt.detail.field_updated", issue.Fields.Updated))
 
 	// Description
 	descText := ExtractTextFromADF(issue.Fields.Description)
-	fmt.Fprintf(w, i18n.T("fmt.detail.header_desc"))
+	fmt.Fprint(w, i18n.T("fmt.detail.header_desc"))
 	if strings.TrimSpace(descText) == "" {
-		fmt.Fprintf(w, i18n.T("fmt.detail.desc_empty"))
+		fmt.Fprint(w, i18n.T("fmt.detail.desc_empty"))
 	} else {
 		for _, line := range strings.Split(descText, "\n") {
 			fmt.Fprintf(w, "  %s\n", line)
@@ -107,7 +107,7 @@ func PrintIssueDetail(w io.Writer, issue *Issue) {
 
 	// Subtasks
 	if len(issue.Fields.Subtasks) > 0 {
-		fmt.Fprintf(w, i18n.Sprintf("fmt.detail.header_subtasks", len(issue.Fields.Subtasks)))
+		fmt.Fprint(w, i18n.Sprintf("fmt.detail.header_subtasks", len(issue.Fields.Subtasks)))
 		for _, st := range issue.Fields.Subtasks {
 			fmt.Fprintf(w, "  - [%s] %s (%s)\n", st.Key, st.Fields.Summary, st.Fields.Status.Name)
 		}
@@ -115,7 +115,7 @@ func PrintIssueDetail(w io.Writer, issue *Issue) {
 
 	// Comments
 	if issue.Fields.Comment != nil && len(issue.Fields.Comment.Comments) > 0 {
-		fmt.Fprintf(w, i18n.Sprintf("fmt.detail.header_comments", len(issue.Fields.Comment.Comments)))
+		fmt.Fprint(w, i18n.Sprintf("fmt.detail.header_comments", len(issue.Fields.Comment.Comments)))
 		for idx, c := range issue.Fields.Comment.Comments {
 			cText := ExtractTextFromADF(c.Body)
 			fmt.Fprintf(w, "  #%d [%s | %s]\n", idx+1, c.Author.DisplayName, c.Created)
@@ -232,28 +232,28 @@ func PrintIssueMarkdown(w io.Writer, issue *Issue) {
 		labels = strings.Join(wrapped, ", ")
 	}
 
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_project", issue.Fields.Project.Name, issue.Fields.Project.Key))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_type", issue.Fields.IssueType.Name))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_status", issue.Fields.Status.Name))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_labels", labels))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_assignee", assignee))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_reporter", reporter))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_due", dueDate))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_created", issue.Fields.Created))
-	fmt.Fprintf(w, i18n.Sprintf("fmt.md.field_updated", issue.Fields.Updated))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_project", issue.Fields.Project.Name, issue.Fields.Project.Key))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_type", issue.Fields.IssueType.Name))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_status", issue.Fields.Status.Name))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_labels", labels))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_assignee", assignee))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_reporter", reporter))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_due", dueDate))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_created", issue.Fields.Created))
+	fmt.Fprint(w, i18n.Sprintf("fmt.md.field_updated", issue.Fields.Updated))
 
 	// Description
 	descText := ExtractTextFromADF(issue.Fields.Description)
-	fmt.Fprintf(w, i18n.T("fmt.md.header_desc"))
+	fmt.Fprint(w, i18n.T("fmt.md.header_desc"))
 	if strings.TrimSpace(descText) == "" {
-		fmt.Fprintf(w, i18n.T("fmt.md.desc_empty"))
+		fmt.Fprint(w, i18n.T("fmt.md.desc_empty"))
 	} else {
 		fmt.Fprintf(w, "%s\n", descText)
 	}
 
 	// Subtasks
 	if len(issue.Fields.Subtasks) > 0 {
-		fmt.Fprintf(w, i18n.Sprintf("fmt.md.header_subtasks", len(issue.Fields.Subtasks)))
+		fmt.Fprint(w, i18n.Sprintf("fmt.md.header_subtasks", len(issue.Fields.Subtasks)))
 		for _, st := range issue.Fields.Subtasks {
 			check := " "
 			lowerStatus := strings.ToLower(st.Fields.Status.Name)
@@ -266,7 +266,7 @@ func PrintIssueMarkdown(w io.Writer, issue *Issue) {
 
 	// Comments
 	if issue.Fields.Comment != nil && len(issue.Fields.Comment.Comments) > 0 {
-		fmt.Fprintf(w, i18n.Sprintf("fmt.md.header_comments", len(issue.Fields.Comment.Comments)))
+		fmt.Fprint(w, i18n.Sprintf("fmt.md.header_comments", len(issue.Fields.Comment.Comments)))
 		for idx, c := range issue.Fields.Comment.Comments {
 			cText := ExtractTextFromADF(c.Body)
 			fmt.Fprintf(w, "### #%d %s (%s)\n\n", idx+1, c.Author.DisplayName, c.Created)

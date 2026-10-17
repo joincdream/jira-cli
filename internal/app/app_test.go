@@ -233,6 +233,10 @@ func TestApp_Run_Labels(t *testing.T) {
 }
 
 func TestApp_Run_CommandMissingArgs(t *testing.T) {
+	origResolver := pkg.GitBranchResolver
+	pkg.GitBranchResolver = func(ctx context.Context) (string, error) { return "main", nil }
+	defer func() { pkg.GitBranchResolver = origResolver }()
+
 	app := NewDefaultApp()
 
 	tests := []struct {
@@ -292,6 +296,10 @@ func TestApp_Run_CommandMissingArgs(t *testing.T) {
 }
 
 func TestApp_Run_Aliases(t *testing.T) {
+	origResolver := pkg.GitBranchResolver
+	pkg.GitBranchResolver = func(ctx context.Context) (string, error) { return "main", nil }
+	defer func() { pkg.GitBranchResolver = origResolver }()
+
 	mockLoader := func() (*pkg.LabelCatalog, error) {
 		return &pkg.LabelCatalog{
 			Version: "1.0.0",

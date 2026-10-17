@@ -122,6 +122,10 @@ func TestBuildBrowserCommand(t *testing.T) {
 }
 
 func TestOpenCommand_Execute(t *testing.T) {
+	origResolver := pkg.GitBranchResolver
+	pkg.GitBranchResolver = func(ctx context.Context) (string, error) { return "main", nil }
+	defer func() { pkg.GitBranchResolver = origResolver }()
+
 	mockClientProvider := func() (*pkg.Client, error) {
 		return pkg.NewClientWithConfig(pkg.Config{
 			InstanceURL: "https://example.atlassian.net",

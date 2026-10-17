@@ -8,7 +8,7 @@ tags:
   - dependency-injection
   - layered-design
 status: stable
-timestamp: 2026-09-20T18:00:00+09:00
+timestamp: 2026-10-17T12:14:00+09:00
 sources:
   - cmd/main.go
   - internal/app/app.go
@@ -18,15 +18,15 @@ verified: true
 
 # 🏛️ 시스템 아키텍처 및 설계 원칙
 
-Jira CLI는 개발자와 AI 에이전트(LLM) 환경에서 즉각적으로 구동될 수 있도록 **초경량, 고성능, 무의존성(Zero-Dependency)**을 핵심 원칙으로 설계되었습니다.
+Jira CLI는 개발자와 AI 에이전트(LLM) 환경에서 즉각적으로 구동될 수 있도록 **초경량, 고성능, 실용적 의존성 관리**를 핵심 원칙으로 설계되었습니다.
 
 ---
 
 ## 🎯 1. 핵심 설계 원칙 (Core Principles)
 
-1. **Zero Third-Party Dependencies (공급망 보안 및 빌드 속도)**:
-   - `go.mod`에 외부 서드파티 라이브러리를 일절 포함하지 않습니다.
-   - HTTP 통신(`net/http`), JSON 처리(`encoding/json`), 플래그 파싱(`flag`), 터미널 서식(`text/tabwriter`) 등 모든 기능을 Go 표준 라이브러리만으로 구현합니다.
+1. **실용적 의존성 관리 (Pragmatic Dependencies & No Wheel Reinvention)**:
+   - 불필요한 의존성 남발은 지양하되, 바퀴를 재발명하지 않기 위해 업계 표준으로 검증된 순수 Go 패키지(예: 임베디드 파일 DB `bbolt` 등)는 명확한 아키텍처 상의 이점(ACID 트랜잭션, 동시성 보장)이 있을 때 채택합니다.
+   - 단일 정적 바이너리 배포 및 크로스 플랫폼(Linux, macOS, Windows) 호환성을 위해 CGO 의존성이 없는 순수 Go 구현체를 지향합니다.
 2. **IoC (Inversion of Control) 및 테스트 용이성**:
    - `internal/app` 계층은 구체적인 네트워크 클라이언트에 직접 의존하지 않고, `ClientProvider` 및 `CatalogLoader` 함수 팩토리를 통해 의존성을 주입받습니다.
    - `httptest.Server` 기반의 E2E Mock 테스트를 실제 네트워크 없이 10ms 이내에 수행할 수 있습니다.

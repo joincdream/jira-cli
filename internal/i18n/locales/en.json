@@ -177,5 +177,9 @@
   "cmd.init_agent.footer": "\n🎉 AI agent rulesets configured successfully. Agents can now operate Jira CLI seamlessly.\n",
   "cmd.init_agent.err_invalid_type": "Invalid agent type: '%s' (Choices: cursor, claude, antigravity, all)",
   "cmd.init_agent.prompt_title": "🤖 Select AI agent rulesets to initialize (comma-separated, Enter for All):\n  [1] Cursor IDE        (.cursor/rules/jira.mdc)\n  [2] Claude Code       (CLAUDE.md)\n  [3] Antigravity       (.agents/skills/jira/SKILL.md)\n  [4] Select All (All)\n\nEnter choice (default: 4): ",
-  "cmd.init_agent.prompt_invalid": "Invalid choice: '%s'"
+  "cmd.init_agent.prompt_invalid": "Invalid choice: '%s'",
+  "cmd.tui.desc": "Launch the interactive TUI cockpit dashboard.",
+  "cmd.watch.desc": "Stream real-time issue updates and activity events to stdout.",
+  "cmd.use.desc": "Set or inspect the active ticket context in local cache.",
+  "cmd.cache.desc": "Manage the local SQLite cache database (clean, status)."
 }
