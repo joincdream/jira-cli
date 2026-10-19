@@ -224,13 +224,28 @@ func TestWatchEngine_InitState_And_PollOnce(t *testing.T) {
 		t.Errorf("expected transition details to contain '진행 중 ➔ 완료', got: %s", events[0].Details)
 	}
 
-	// Active issues in memory should now be empty (pruned because it's Done)
+	// Active issues in memory (View Projection) should now be empty (0 active issues)
 	if len(engine.GetMemoryIssues()) != 0 {
-		t.Errorf("expected 0 active issues in memory after completion, got %d", len(engine.GetMemoryIssues()))
+		t.Errorf("expected 0 active issues in memory view after completion, got %d", len(engine.GetMemoryIssues()))
 	}
-	// Active issues in SQLite should also be 0
-	cachedAfterDone, _ := cacheDB.GetIssues("JC", "all")
-	if len(cachedAfterDone) != 0 {
-		t.Errorf("expected 0 active issues in SQLite cache after completion, got %d", len(cachedAfterDone))
+	// Active issues in SQLite with 'open' filter should also be 0
+	openCached, _ := cacheDB.GetIssues("JC", "open")
+	if len(openCached) != 0 {
+		t.Errorf("expected 0 open issues in SQLite cache after completion, got %d", len(openCached))
+	}
+	// Full history in SQLite ('all' filter) preserves JC-17 with updated status
+	allCached, _ := cacheDB.GetIssues("JC", "all")
+	if len(allCached) != 1 || allCached[0].Key != "JC-17" {
+		t.Errorf("expected 1 persistent issue in SQLite cache, got %d", len(allCached))
+	}
+
+	// 3. Third poll: JC-17 remains "완료" (Done) with identical Updated timestamp
+	// Must be a complete No-Op and emit 0 duplicate events!
+	events3, err := engine.PollOnce(context.Background())
+	if err != nil {
+		t.Fatalf("Third PollOnce error: %v", err)
+	}
+	if len(events3) != 0 {
+		t.Fatalf("expected 0 events on subsequent poll of already completed issue (idempotency), got %d: %+v", len(events3), events3)
 	}
 }

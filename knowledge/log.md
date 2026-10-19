@@ -15,6 +15,22 @@ verified: true
 
 본 문서는 `knowledge/` 번들 내 지식 자산의 생성, 코드 변경에 따른 동기화 및 검증 이력을 기록합니다.
 
+## 2026-10-19 (Watch: Key-Value 단일 스토어 기반 멱등적 Live Activity 감지 엔진 전면 리팩토링)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. 단일 진실 공급원(Single Source of Truth) 스토어 도입 (`pkg/watch.go`):
+     - View 표시(활성 이슈)와 도메인 상태 추적을 혼동하여 완료 티켓을 메모리/DB에서 임의 삭제(Prune)하던 구조적 결함 제거.
+     - `WatchEngine` 내부 상태를 `issueStore map[string]Issue` (Key: IssueKey -> Value: Issue) 단일 Key-Value 스토어로 통합.
+     - 서버에서 fetch된 이슈는 완료 여부와 무관하게 `issueStore` 및 SQLite `issues` 테이블에 지속 보존(Upsert).
+  2. Updated 타임스탬프 기반의 멱등한(Idempotent) 변경 판정 (`DiffIssues`):
+     - `oldIss.Fields.Updated == newIss.Fields.Updated` 조건에 걸리면 0.000ms 즉시 스킵(완벽한 No-Op).
+     - 리프레시마다 완료된 티켓이 서버에서 계속 내려와도 중복 `CREATED` 이벤트가 영원히 발행되지 않도록 보장.
+  3. UI 프로젝션(View Layer Projection) 분리 (`GetMemoryIssues`):
+     - TUI 좌측 목록 테이블은 상태 스토어를 건드리지 않고 `!isDoneStatus` 필터링 뷰 프로젝션만 수행하도록 분리.
+  4. 검증:
+     - `pkg/watch_test.go`: 완료 상태 전이 후 3회차 폴링에서도 이벤트 0개 발행(No-Op) 및 SQLite 이력 보존 검증 (100% Pass).
+     - `make test` 및 `make install` 배포 완료.
+
 ## 2026-10-19 (JC-18: 안티패턴 단위 테스트 리팩토링 및 테스트 격리/가독성 개선)
 - **작업 티켓**: [JC-18](https://joincdream.atlassian.net/browse/JC-18)
 - **작성자**: Antigravity AI Assistant & 윤상배

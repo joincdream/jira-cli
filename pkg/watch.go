@@ -80,6 +80,11 @@ func DiffIssues(space string, oldMap map[string]Issue, newIssues []Issue, curren
 		oldIss, exists := oldMap[newIss.Key]
 		if !exists {
 			// Newly discovered issue
+			// If an issue is already completed when first discovered, do not emit CREATED event
+			if isDoneStatus(newIss.Fields.Status) {
+				continue
+			}
+
 			evt := ActivityEvent{
 				Space:     space,
 				IssueKey:  newIss.Key,
@@ -93,6 +98,11 @@ func DiffIssues(space string, oldMap map[string]Issue, newIssues []Issue, curren
 			if isAssignedToUser(newIss, currentUserEmail) {
 				newlyAssigned = append(newlyAssigned, newIss)
 			}
+			continue
+		}
+
+		// Idempotency: if updated timestamp is identical, state is completely unchanged (No-Op)
+		if oldIss.Fields.Updated != "" && newIss.Fields.Updated != "" && oldIss.Fields.Updated == newIss.Fields.Updated {
 			continue
 		}
 
@@ -181,9 +191,9 @@ type WatchEngine struct {
 	maxInterval time.Duration
 	curInterval time.Duration
 
-	inMemoryIssues map[string]Issue
-	cachedDigest   *CatchupDigest
-	mu             sync.RWMutex
+	issueStore   map[string]Issue // Key: IssueKey -> Value: Issue (Single Source of Truth)
+	cachedDigest *CatchupDigest
+	mu           sync.RWMutex
 
 	eventCh chan ActivityEvent
 	stopCh  chan struct{}
@@ -195,15 +205,15 @@ func NewWatchEngine(client *Client, cacheDB *CacheDB, space string, initialInter
 		initialInterval = 15 * time.Second
 	}
 	return &WatchEngine{
-		client:         client,
-		cacheDB:        cacheDB,
-		space:          strings.ToUpper(strings.TrimSpace(space)),
-		minInterval:    initialInterval,
-		maxInterval:    60 * time.Second,
-		curInterval:    initialInterval,
-		inMemoryIssues: make(map[string]Issue),
-		eventCh:        make(chan ActivityEvent, 100),
-		stopCh:         make(chan struct{}),
+		client:          client,
+		cacheDB:         cacheDB,
+		space:           strings.ToUpper(strings.TrimSpace(space)),
+		minInterval:     initialInterval,
+		maxInterval:     60 * time.Second,
+		curInterval:     initialInterval,
+		issueStore:      make(map[string]Issue),
+		eventCh:         make(chan ActivityEvent, 100),
+		stopCh:          make(chan struct{}),
 	}
 }
 
@@ -212,14 +222,17 @@ func (w *WatchEngine) EventChannel() <-chan ActivityEvent {
 	return w.eventCh
 }
 
-// GetMemoryIssues returns a snapshot slice of currently held in-memory issues.
+// GetMemoryIssues returns active (non-done) issues for TUI display (View Layer Projection).
+// It projects non-completed issues from the central issueStore without mutating state.
 func (w *WatchEngine) GetMemoryIssues() []Issue {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	res := make([]Issue, 0, len(w.inMemoryIssues))
-	for _, iss := range w.inMemoryIssues {
-		res = append(res, iss)
+	res := make([]Issue, 0, len(w.issueStore))
+	for _, iss := range w.issueStore {
+		if !isDoneStatus(iss.Fields.Status) {
+			res = append(res, iss)
+		}
 	}
 	return res
 }
@@ -238,12 +251,12 @@ func (w *WatchEngine) PollNow() ([]ActivityEvent, error) {
 
 // InitState loads the cached issues into memory (0ms startup) and checks for catch-up needs.
 func (w *WatchEngine) InitState(ctx context.Context) (*CatchupDigest, error) {
-	// 1. Load from local SQLite cache instantly
+	// 1. Load from local SQLite cache instantly into issueStore
 	cachedIssues, err := w.cacheDB.GetIssues(w.space, "all")
 	if err == nil && len(cachedIssues) > 0 {
 		w.mu.Lock()
 		for _, iss := range cachedIssues {
-			w.inMemoryIssues[iss.Key] = iss
+			w.issueStore[iss.Key] = iss
 		}
 		w.mu.Unlock()
 	}
@@ -312,8 +325,8 @@ func (w *WatchEngine) syncRemote(ctx context.Context) ([]ActivityEvent, []Status
 	}
 
 	w.mu.RLock()
-	oldMap := make(map[string]Issue, len(w.inMemoryIssues))
-	for k, v := range w.inMemoryIssues {
+	oldMap := make(map[string]Issue, len(w.issueStore))
+	for k, v := range w.issueStore {
 		oldMap[k] = v
 	}
 	w.mu.RUnlock()
@@ -321,25 +334,12 @@ func (w *WatchEngine) syncRemote(ctx context.Context) ([]ActivityEvent, []Status
 	userEmail := w.client.GetConfig().Email
 	events, statusChanges, newlyAssigned, newComments := DiffIssues(w.space, oldMap, fetched, userEmail)
 
-	// Filter out completed issues for active cache & memory representation
-	var activeIssues []Issue
-	var activeKeys []string
-	for _, f := range fetched {
-		if !isDoneStatus(f.Fields.Status) {
-			activeIssues = append(activeIssues, f)
-			activeKeys = append(activeKeys, f.Key)
-		}
-	}
-
-	// Update local SQLite cache with active issues only
-	if err := w.cacheDB.UpsertIssues(w.space, activeIssues); err != nil {
+	// 1. Upsert all fetched issues into SQLite cache (persisting state, never deleting completed ones)
+	if err := w.cacheDB.UpsertIssues(w.space, fetched); err != nil {
 		return nil, nil, nil, 0, err
 	}
 
-	// Prune issues that are no longer in open set (including newly completed ones)
-	_ = w.cacheDB.PruneDeletedIssues(w.space, activeKeys)
-
-	// Log activities to SQLite and publish to channel
+	// 2. Log activities to SQLite and publish to channel
 	for _, evt := range events {
 		_ = w.cacheDB.LogActivity(evt.Space, evt.IssueKey, evt.Author, evt.EventType, evt.Details, evt.CreatedAt)
 		select {
@@ -350,11 +350,10 @@ func (w *WatchEngine) syncRemote(ctx context.Context) ([]ActivityEvent, []Status
 
 	_ = w.cacheDB.SaveSpace(w.space, w.space, time.Now())
 
-	// Update in-memory state with active issues only
+	// 3. Upsert into in-memory Single Source of Truth (Key: IssueKey -> Value: Issue)
 	w.mu.Lock()
-	w.inMemoryIssues = make(map[string]Issue, len(activeIssues))
-	for _, iss := range activeIssues {
-		w.inMemoryIssues[iss.Key] = iss
+	for _, iss := range fetched {
+		w.issueStore[iss.Key] = iss
 	}
 	w.mu.Unlock()
 
