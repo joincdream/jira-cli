@@ -293,13 +293,15 @@ func (c *CacheDB) GetIssue(key string) (*Issue, error) {
 
 // PruneDeletedIssues removes cached issues for space that are not in currentKeys.
 func (c *CacheDB) PruneDeletedIssues(space string, currentKeys []string) error {
+	space = strings.ToUpper(strings.TrimSpace(space))
 	if len(currentKeys) == 0 {
-		return nil
+		_, err := c.db.Exec("DELETE FROM issues WHERE space = ?", space)
+		return err
 	}
 
 	placeholders := make([]string, len(currentKeys))
 	args := make([]interface{}, 0, len(currentKeys)+1)
-	args = append(args, strings.ToUpper(strings.TrimSpace(space)))
+	args = append(args, space)
 
 	for i, k := range currentKeys {
 		placeholders[i] = "?"
@@ -396,8 +398,18 @@ func (c *CacheDB) ClearActiveIssue() error {
 	return err
 }
 
-// GetCachedActiveIssue returns the active issue key from the default cache file if present.
+// CachedActiveIssueResolver resolves the active cached issue key. Can be overridden in unit tests.
+var CachedActiveIssueResolver = GetCachedActiveIssueDefault
+
 func GetCachedActiveIssue() string {
+	if CachedActiveIssueResolver != nil {
+		return CachedActiveIssueResolver()
+	}
+	return ""
+}
+
+// GetCachedActiveIssueDefault returns the active issue key from the default cache file if present.
+func GetCachedActiveIssueDefault() string {
 	path, err := GetDefaultCachePath()
 	if err != nil {
 		return ""

@@ -77,7 +77,12 @@ func TestResolveIssueKey(t *testing.T) {
 
 	// 2. Explicit key empty, mock branch returns feature/JC-14
 	origResolver := GitBranchResolver
-	defer func() { GitBranchResolver = origResolver }()
+	origCacheResolver := CachedActiveIssueResolver
+	defer func() {
+		GitBranchResolver = origResolver
+		CachedActiveIssueResolver = origCacheResolver
+	}()
+	CachedActiveIssueResolver = func() string { return "" }
 
 	GitBranchResolver = func(ctx context.Context) (string, error) {
 		return "feature/JC-14-auto-binding", nil

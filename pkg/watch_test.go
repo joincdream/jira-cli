@@ -187,4 +187,50 @@ func TestWatchEngine_InitState_And_PollOnce(t *testing.T) {
 	if err != nil || len(cached) != 1 || cached[0].Key != "JC-17" {
 		t.Fatalf("expected JC-17 in SQLite cache, got: %+v", cached)
 	}
+
+	// 2. Second poll: JC-17 transitions to "완료" (Done)
+	// Even though it is now Done, watch engine should detect the STATUS_CHANGE event,
+	// publish it to event channel, and prune it from active memory & cache.
+	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/rest/api/3/search/jql") {
+			w.WriteHeader(http.StatusOK)
+			doneIssues := []Issue{
+				{
+					Key: "JC-17",
+					Fields: IssueFields{
+						Summary: "Watch Engine Test",
+						Status: Status{
+							Name:           "완료",
+							StatusCategory: &StatusCategory{Key: "done", Name: "Done"},
+						},
+						Updated: "2026-10-18T15:15:00.000+0900",
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(SearchResponse{Issues: doneIssues})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	events, err := engine.PollOnce(context.Background())
+	if err != nil {
+		t.Fatalf("PollOnce error: %v", err)
+	}
+	if len(events) != 1 || events[0].EventType != "STATUS_CHANGE" {
+		t.Fatalf("expected 1 STATUS_CHANGE event, got: %+v", events)
+	}
+	if !strings.Contains(events[0].Details, "진행 중 ➔ 완료") {
+		t.Errorf("expected transition details to contain '진행 중 ➔ 완료', got: %s", events[0].Details)
+	}
+
+	// Active issues in memory should now be empty (pruned because it's Done)
+	if len(engine.GetMemoryIssues()) != 0 {
+		t.Errorf("expected 0 active issues in memory after completion, got %d", len(engine.GetMemoryIssues()))
+	}
+	// Active issues in SQLite should also be 0
+	cachedAfterDone, _ := cacheDB.GetIssues("JC", "all")
+	if len(cachedAfterDone) != 0 {
+		t.Errorf("expected 0 active issues in SQLite cache after completion, got %d", len(cachedAfterDone))
+	}
 }

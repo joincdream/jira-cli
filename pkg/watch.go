@@ -295,8 +295,17 @@ func (w *WatchEngine) PollOnce(ctx context.Context) ([]ActivityEvent, error) {
 	return events, err
 }
 
+func isDoneStatus(s Status) bool {
+	if s.StatusCategory != nil && strings.EqualFold(s.StatusCategory.Key, "done") {
+		return true
+	}
+	norm := strings.ToLower(strings.TrimSpace(s.Name))
+	return strings.Contains(norm, "완료") || strings.Contains(norm, "done") || strings.Contains(norm, "resolved")
+}
+
 func (w *WatchEngine) syncRemote(ctx context.Context) ([]ActivityEvent, []StatusChange, []Issue, int, error) {
-	jql := fmt.Sprintf("project = '%s' AND statusCategory != Done ORDER BY updated DESC", w.space)
+	// Query non-done issues OR issues updated within the last 1 day so that transitions to Done are detected
+	jql := fmt.Sprintf("project = '%s' AND (statusCategory != Done OR updated >= -1d) ORDER BY updated DESC", w.space)
 	fetched, err := w.client.ListIssuesWithOptions(ctx, jql, ListIssuesOptions{Detail: true})
 	if err != nil {
 		return nil, nil, nil, 0, err
@@ -312,17 +321,23 @@ func (w *WatchEngine) syncRemote(ctx context.Context) ([]ActivityEvent, []Status
 	userEmail := w.client.GetConfig().Email
 	events, statusChanges, newlyAssigned, newComments := DiffIssues(w.space, oldMap, fetched, userEmail)
 
-	// Update local SQLite cache
-	if err := w.cacheDB.UpsertIssues(w.space, fetched); err != nil {
+	// Filter out completed issues for active cache & memory representation
+	var activeIssues []Issue
+	var activeKeys []string
+	for _, f := range fetched {
+		if !isDoneStatus(f.Fields.Status) {
+			activeIssues = append(activeIssues, f)
+			activeKeys = append(activeKeys, f.Key)
+		}
+	}
+
+	// Update local SQLite cache with active issues only
+	if err := w.cacheDB.UpsertIssues(w.space, activeIssues); err != nil {
 		return nil, nil, nil, 0, err
 	}
 
-	// Prune issues that no longer exist in open set
-	var currentKeys []string
-	for _, f := range fetched {
-		currentKeys = append(currentKeys, f.Key)
-	}
-	_ = w.cacheDB.PruneDeletedIssues(w.space, currentKeys)
+	// Prune issues that are no longer in open set (including newly completed ones)
+	_ = w.cacheDB.PruneDeletedIssues(w.space, activeKeys)
 
 	// Log activities to SQLite and publish to channel
 	for _, evt := range events {
@@ -335,10 +350,10 @@ func (w *WatchEngine) syncRemote(ctx context.Context) ([]ActivityEvent, []Status
 
 	_ = w.cacheDB.SaveSpace(w.space, w.space, time.Now())
 
-	// Update in-memory state
+	// Update in-memory state with active issues only
 	w.mu.Lock()
-	w.inMemoryIssues = make(map[string]Issue, len(fetched))
-	for _, iss := range fetched {
+	w.inMemoryIssues = make(map[string]Issue, len(activeIssues))
+	for _, iss := range activeIssues {
 		w.inMemoryIssues[iss.Key] = iss
 	}
 	w.mu.Unlock()

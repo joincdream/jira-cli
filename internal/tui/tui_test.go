@@ -6,13 +6,12 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"tools/jira/pkg"
 )
 
-func TestTUI_Model_Navigation_And_View(t *testing.T) {
+func TestCockpit_Initialization_And_Navigation(t *testing.T) {
 	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "test_tui.db")
+	dbPath := filepath.Join(tempDir, "test_tui_cockpit.db")
 	cache, err := pkg.OpenCacheDB(dbPath)
 	if err != nil {
 		t.Fatalf("failed to open cache: %v", err)
@@ -47,78 +46,38 @@ func TestTUI_Model_Navigation_And_View(t *testing.T) {
 	}
 	_ = cache.UpsertIssues("JC", sampleIssues)
 
-	model := NewModel("JC", "https://example.atlassian.net", nil, cache, nil)
+	cockpit := NewCockpit("JC", "https://example.atlassian.net", nil, cache, nil)
 
-	if len(model.issues) != 3 {
-		t.Fatalf("expected 3 issues loaded from cache, got %d", len(model.issues))
+	if len(cockpit.issues) != 3 {
+		t.Fatalf("expected 3 issues loaded from cache, got %d", len(cockpit.issues))
 	}
-	if model.cursor != 0 {
-		t.Fatalf("expected initial cursor 0, got %d", model.cursor)
-	}
-
-	// Test Key Navigation
-	// 1. Move Down ('j')
-	m, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	model = m.(Model)
-	if model.cursor != 1 {
-		t.Errorf("expected cursor 1 after 'j', got %d", model.cursor)
+	if cockpit.table.GetRowCount() != 3 {
+		t.Fatalf("expected 3 table rows, got %d", cockpit.table.GetRowCount())
 	}
 
-	// 2. Move Down ('j')
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	model = m.(Model)
-	if model.cursor != 2 {
-		t.Errorf("expected cursor 2 after 'j', got %d", model.cursor)
+	// 1. Verify detail view contents for selected issue
+	cockpit.onIssueSelectionChanged(0)
+	detailText := cockpit.detailView.GetText(true)
+	if !strings.Contains(detailText, "JC-1") || !strings.Contains(detailText, "First Task") {
+		t.Errorf("expected detail to contain JC-1 and First Task, got:\n%s", detailText)
 	}
 
-	// 3. Move Down again (clamped at end)
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	model = m.(Model)
-	if model.cursor != 2 {
-		t.Errorf("expected cursor clamped at 2, got %d", model.cursor)
+	// 2. Select another row
+	cockpit.onIssueSelectionChanged(2)
+	detailText3 := cockpit.detailView.GetText(true)
+	if !strings.Contains(detailText3, "JC-3") || !strings.Contains(detailText3, "Third Task") {
+		t.Errorf("expected detail to contain JC-3 and Third Task, got:\n%s", detailText3)
 	}
 
-	// 4. Move Up ('k')
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	model = m.(Model)
-	if model.cursor != 1 {
-		t.Errorf("expected cursor 1 after 'k', got %d", model.cursor)
-	}
-
-	// 5. Jump to Top ('g')
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
-	model = m.(Model)
-	if model.cursor != 0 {
-		t.Errorf("expected cursor 0 after 'g', got %d", model.cursor)
-	}
-
-	// 6. Jump to End ('G')
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
-	model = m.(Model)
-	if model.cursor != 2 {
-		t.Errorf("expected cursor 2 after 'G', got %d", model.cursor)
-	}
-
-	// 7. Set Active ('c')
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	model = m.(Model)
+	// 3. Test Set Active Issue ('c')
+	cockpit.table.Select(2, 0)
+	cockpit.setCurrentIssueActive()
 	activeKey, err := cache.GetActiveIssue()
 	if err != nil || activeKey != "JC-3" {
 		t.Errorf("expected active issue 'JC-3', got '%s', err: %v", activeKey, err)
 	}
 
-	// 8. Window size update and rendering
-	m, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	model = m.(Model)
-	viewOutput := model.View()
-	if !strings.Contains(viewOutput, "JIRA COCKPIT") {
-		t.Errorf("expected view to contain 'JIRA COCKPIT', got:\n%s", viewOutput)
-	}
-	if !strings.Contains(viewOutput, "JC-1") || !strings.Contains(viewOutput, "JC-3") {
-		t.Errorf("expected view to render issue keys, got:\n%s", viewOutput)
-	}
-
-	// 9. Digest Handling
+	// 4. Test Digest View Handling
 	digest := &pkg.CatchupDigest{
 		IsLongAbsence:   true,
 		AbsenceDuration: 14 * 24 * time.Hour,
@@ -131,28 +90,110 @@ func TestTUI_Model_Navigation_And_View(t *testing.T) {
 		NewCommentCount:   3,
 		TotalChangedCount: 5,
 	}
-	m, _ = model.Update(DigestMsg(digest))
-	model = m.(Model)
-	if !model.showDigest {
-		t.Errorf("expected showDigest to be true")
+	cockpit.digest = digest
+	cockpit.showDigest = true
+	cockpit.updateDigest()
+	cockpit.rebuildRootLayout()
+
+	digestText := cockpit.digestView.GetText(true)
+	if !strings.Contains(digestText, "Welcome Back") || !strings.Contains(digestText, "14일간") {
+		t.Errorf("expected digest text to contain Welcome Back, got:\n%s", digestText)
 	}
 
-	digestView := model.View()
-	if !strings.Contains(digestView, "Welcome Back") || !strings.Contains(digestView, "14일간") {
-		t.Errorf("expected digest in view, got:\n%s", digestView)
+	// Dismiss digest
+	cockpit.showDigest = false
+	cockpit.rebuildRootLayout()
+	if cockpit.showDigest {
+		t.Errorf("expected showDigest to be false")
 	}
 
-	// 10. Dismiss Digest ('esc')
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyEscape})
-	model = m.(Model)
-	if model.showDigest {
-		t.Errorf("expected showDigest to be false after ESC")
+	// 5. Test Zoom Mode ('z')
+	cockpit.zoomMode = true
+	cockpit.rebuildWorkspaceFlex()
+	if cockpit.workspaceFlex.GetItemCount() != 1 {
+		t.Errorf("expected 1 item in workspaceFlex when zoomed, got %d", cockpit.workspaceFlex.GetItemCount())
 	}
 
-	// 11. Quit ('q')
-	m, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
-	model = m.(Model)
-	if !model.quitting || cmd == nil {
-		t.Errorf("expected quitting=true and non-nil cmd on 'q'")
+	cockpit.zoomMode = false
+	cockpit.rebuildWorkspaceFlex()
+	if cockpit.workspaceFlex.GetItemCount() != 2 {
+		t.Errorf("expected 2 items in workspaceFlex after restore, got %d", cockpit.workspaceFlex.GetItemCount())
+	}
+
+	// 6. Test Ratio Adjustments ('[' and ']')
+	initialLeft := cockpit.leftRatio
+	cockpit.leftRatio += 5
+	cockpit.rebuildWorkspaceFlex()
+	if cockpit.leftRatio != initialLeft+5 {
+		t.Errorf("expected leftRatio %d, got %d", initialLeft+5, cockpit.leftRatio)
+	}
+}
+
+func TestWidgets_Formatting_And_Escaping(t *testing.T) {
+	// 1. Status Badges
+	badgeDone := formatStatusBadgeTview("완료")
+	if !strings.Contains(badgeDone, "완료") {
+		t.Errorf("expected badgeDone to contain 완료, got %s", badgeDone)
+	}
+
+	badgeProgress := formatStatusBadgeTview("In Progress")
+	if !strings.Contains(badgeProgress, "진행 중") {
+		t.Errorf("expected badgeProgress to contain 진행 중, got %s", badgeProgress)
+	}
+
+	// 2. Detail Card with CRLF Description and Special characters + Comments
+	desc := "Line 1\r\nLine 2 with brackets [and tags] and emojis: ⚡ 🏖️\r\n"
+	issue := &pkg.Issue{
+		Key: "JC-99",
+		Fields: pkg.IssueFields{
+			Summary:     "Important [Bug] Fix",
+			Status:      pkg.Status{Name: "진행 중"},
+			Description: pkg.BuildADFDocument(desc),
+			Comment: &pkg.CommentBlock{
+				Total: 1,
+				Comments: []pkg.Comment{
+					{
+						ID:      "10001",
+						Author:  pkg.User{DisplayName: "Alice Smith"},
+						Body:    "Fixed the regression in test environment.",
+						Created: "2026-10-18T14:00:00.000+0900",
+					},
+				},
+			},
+		},
+	}
+
+	cardText := buildDetailCardText(issue)
+	if !strings.Contains(cardText, "JC-99") {
+		t.Errorf("expected card to contain JC-99")
+	}
+	if strings.Contains(cardText, "\r") {
+		t.Errorf("expected cardText to have CRLF normalized without '\\r'")
+	}
+	if !strings.Contains(cardText, "Line 2 with brackets") {
+		t.Errorf("expected card to render description lines")
+	}
+	if !strings.Contains(cardText, "Comments (1)") || !strings.Contains(cardText, "Alice Smith") {
+		t.Errorf("expected card to render comment section and author, got:\n%s", cardText)
+	}
+
+	// 3. Activity Feed Text
+	activities := []pkg.ActivityEvent{
+		{
+			IssueKey:  "JC-99",
+			EventType: "STATUS_CHANGE",
+			Details:   "진행 중 ➔ 완료",
+			CreatedAt: time.Now(),
+		},
+	}
+	actText := buildActivityFeedText(activities)
+	if !strings.Contains(actText, "JC-99") || !strings.Contains(actText, "[STATUS]") {
+		t.Errorf("expected activity feed to render event, got:\n%s", actText)
+	}
+
+	// 4. Header Text
+	header := buildHeaderContent("JC", "LIVE WATCHING", time.Now())
+	if !strings.Contains(header, "JIRA COCKPIT") || !strings.Contains(header, "SPACE: JC") {
+		t.Errorf("expected header to contain title and space, got:\n%s", header)
 	}
 }

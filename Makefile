@@ -15,8 +15,7 @@ build:
 
 install: build
 	@echo "📦 Installing to ~/.local/bin/$(BINARY_NAME)..."
-	@mkdir -p $(HOME)/.local/bin
-	cp $(BIN_DIR)/$(BINARY_NAME) $(HOME)/.local/bin/$(BINARY_NAME)
+	install -m 755 $(BIN_DIR)/$(BINARY_NAME) $(HOME)/.local/bin/$(BINARY_NAME)
 	@echo "✅ Installed: $(HOME)/.local/bin/$(BINARY_NAME)"
 
 clean:
