@@ -3,6 +3,7 @@ package pkg
 import (
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -409,7 +410,12 @@ func GetCachedActiveIssue() string {
 }
 
 // GetCachedActiveIssueDefault returns the active issue key from the default cache file if present.
+// When running in a testing environment (flag test.v is present) without an explicit XDG_CACHE_HOME,
+// it returns "" to prevent the host machine's ~/.cache/jira/state.db from contaminating unit tests.
 func GetCachedActiveIssueDefault() string {
+	if flag.Lookup("test.v") != nil && os.Getenv("XDG_CACHE_HOME") == "" {
+		return ""
+	}
 	path, err := GetDefaultCachePath()
 	if err != nil {
 		return ""

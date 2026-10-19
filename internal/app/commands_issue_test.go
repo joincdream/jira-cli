@@ -575,10 +575,6 @@ func TestJC14_GitBranchContextBinding(t *testing.T) {
 	origResolver := pkg.GitBranchResolver
 	defer func() { pkg.GitBranchResolver = origResolver }()
 
-	origCacheResolver := pkg.CachedActiveIssueResolver
-	defer func() { pkg.CachedActiveIssueResolver = origCacheResolver }()
-	pkg.CachedActiveIssueResolver = func() string { return "" }
-
 	// 1. Mock branch with ticket key
 	pkg.GitBranchResolver = func(ctx context.Context) (string, error) {
 		return "feature/JC-14-git-context-binding", nil

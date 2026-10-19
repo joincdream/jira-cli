@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -237,10 +238,6 @@ func TestApp_Run_CommandMissingArgs(t *testing.T) {
 	pkg.GitBranchResolver = func(ctx context.Context) (string, error) { return "main", nil }
 	defer func() { pkg.GitBranchResolver = origResolver }()
 
-	origCacheResolver := pkg.CachedActiveIssueResolver
-	defer func() { pkg.CachedActiveIssueResolver = origCacheResolver }()
-	pkg.CachedActiveIssueResolver = func() string { return "" }
-
 	app := NewDefaultApp()
 
 	tests := []struct {
@@ -290,56 +287,55 @@ func TestApp_Run_CommandMissingArgs(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			code := app.Run(context.Background(), tt.args, &stdout, &stderr)
 			if code != 1 {
-				t.Fatalf("expected exit code 1 for %v, got %d", tt.args, code)
+				t.Fatalf("expected exit code 1 for %v, got %d. stderr: %q, stdout: %q", tt.args, code, stderr.String(), stdout.String())
 			}
 			if !strings.Contains(stderr.String(), tt.expectedErr) {
-				t.Errorf("expected error containing %q, got: %s", tt.expectedErr, stderr.String())
+				t.Errorf("expected error containing %q, got: %q", tt.expectedErr, stderr.String())
 			}
 		})
 	}
 }
 
 func TestApp_Run_Aliases(t *testing.T) {
-	origResolver := pkg.GitBranchResolver
-	pkg.GitBranchResolver = func(ctx context.Context) (string, error) { return "main", nil }
-	defer func() { pkg.GitBranchResolver = origResolver }()
+	app := NewDefaultApp()
 
-	origCacheResolver := pkg.CachedActiveIssueResolver
-	defer func() { pkg.CachedActiveIssueResolver = origCacheResolver }()
-	pkg.CachedActiveIssueResolver = func() string { return "" }
-
-	mockLoader := func() (*pkg.LabelCatalog, error) {
-		return &pkg.LabelCatalog{
-			Version: "1.0.0",
-			Categories: map[string]pkg.LabelCategory{},
-		}, nil
-	}
-	app := NewApp("1.5.0", nil, mockLoader)
-
-	aliases := []struct {
-		alias       string
-		expectedErr string
-	}{
-		{"view", "감지하지 못했습니다"},
-		{"show", "감지하지 못했습니다"},
-		{"new", "사용법: jira create <SUMMARY>"},
-		{"add", "사용법: jira create <SUMMARY>"},
-		{"update", "감지하지 못했습니다"},
-		{"transition", "사용법: jira move <KEY> <STATUS>"},
-		{"status", "사용법: jira move <KEY> <STATUS>"},
-		{"rm", "사용법: jira delete <KEY>"},
-		{"tags", ""},
+	expectedMappings := map[string]string{
+		"view":       "get",
+		"show":       "get",
+		"new":        "create",
+		"add":        "create",
+		"update":     "edit",
+		"transition": "move",
+		"status":     "move",
+		"rm":         "delete",
+		"tags":       "labels",
+		"ls":         "list",
+		"user":       "users",
+		"digest":     "report",
+		"summary":    "report",
+		"browse":     "open",
+		"cockpit":    "tui",
+		"dashboard":  "tui",
+		"tail":       "watch",
+		"set-active": "use",
+		"current":    "use",
+		"config":     "configure",
+		"agent-init": "init-agent",
 	}
 
-	for _, a := range aliases {
-		t.Run(a.alias, func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
-			app.Run(context.Background(), []string{a.alias}, &stdout, &stderr)
-			if strings.Contains(stderr.String(), "알 수 없는 명령어") {
-				t.Errorf("alias %q was not recognized as a command", a.alias)
+	for alias, primary := range expectedMappings {
+		alias, primary := alias, primary
+		t.Run(fmt.Sprintf("%s -> %s", alias, primary), func(t *testing.T) {
+			aliasCmd, ok := app.GetCommand(alias)
+			if !ok {
+				t.Fatalf("alias %q is not registered in app", alias)
 			}
-			if a.expectedErr != "" && !strings.Contains(stderr.String(), a.expectedErr) {
-				t.Errorf("expected error %q, got %s", a.expectedErr, stderr.String())
+			primaryCmd, ok := app.GetCommand(primary)
+			if !ok {
+				t.Fatalf("primary command %q is not registered in app", primary)
+			}
+			if aliasCmd.Name() != primaryCmd.Name() {
+				t.Errorf("alias %q resolved to command %q, want %q", alias, aliasCmd.Name(), primaryCmd.Name())
 			}
 		})
 	}

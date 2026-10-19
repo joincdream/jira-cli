@@ -126,10 +126,6 @@ func TestOpenCommand_Execute(t *testing.T) {
 	pkg.GitBranchResolver = func(ctx context.Context) (string, error) { return "main", nil }
 	defer func() { pkg.GitBranchResolver = origResolver }()
 
-	origCacheResolver := pkg.CachedActiveIssueResolver
-	defer func() { pkg.CachedActiveIssueResolver = origCacheResolver }()
-	pkg.CachedActiveIssueResolver = func() string { return "" }
-
 	mockClientProvider := func() (*pkg.Client, error) {
 		return pkg.NewClientWithConfig(pkg.Config{
 			InstanceURL: "https://example.atlassian.net",
