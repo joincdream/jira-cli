@@ -1,4 +1,4 @@
-.PHONY: build install clean test test-unit complexity complexity-top complexity-cyclo complexity-cognit
+.PHONY: build install clean test test-unit test-verbose test-pretty test-web test-report test-cover complexity complexity-top complexity-cyclo complexity-cognit
 
 BINARY_NAME=jira
 BIN_DIR=../../bin
@@ -19,13 +19,37 @@ install: build
 	@echo "✅ Installed: $(HOME)/.local/bin/$(BINARY_NAME)"
 
 clean:
-	rm -rf $(BIN_DIR)/$(BINARY_NAME)
+	rm -rf $(BIN_DIR)/$(BINARY_NAME) coverage.out coverage.html test-report.html
 
 test: test-unit complexity
 
 test-unit:
-	@echo "🧪 Running unit tests..."
+	@echo "🧪 Running unit tests (clean failure-focused mode)..."
+	go test ./...
+
+test-verbose:
+	@echo "🧪 Running unit tests (verbose mode)..."
 	go test -v ./...
+
+test-pretty:
+	@echo "🧪 Running unit tests with gotestsum..."
+	@go run gotest.tools/gotestsum@latest --format testdox
+
+test-cover:
+	@echo "📊 Coverage summary by package:"
+	go test -cover ./...
+
+test-report:
+	@echo "📑 Generating QA Test Execution Dashboard (test-report.html)..."
+	@go test -json ./... | go run github.com/vakenbolt/go-test-report@latest -o test-report.html
+	@echo "✅ QA Dashboard generated: test-report.html"
+	@if command -v xdg-open > /dev/null 2>&1; then \
+		xdg-open test-report.html > /dev/null 2>&1 || true; \
+	elif command -v open > /dev/null 2>&1; then \
+		open test-report.html > /dev/null 2>&1 || true; \
+	fi
+
+test-web: test-report
 
 complexity: complexity-cyclo complexity-cognit
 	@echo "✅ All complexity checks passed!"

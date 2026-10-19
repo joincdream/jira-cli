@@ -64,6 +64,12 @@ func (a *App) Register(cmd Command) {
 	}
 }
 
+// GetCommand returns the command registered under the given name or alias.
+func (a *App) GetCommand(name string) (Command, bool) {
+	cmd, ok := a.commands[name]
+	return cmd, ok
+}
+
 func (a *App) registerBuiltinCommands() {
 	// Meta / Information commands
 	a.Register(NewHelpCommand(a))

@@ -10,9 +10,10 @@ jira
 *.test
 *.out
 
-# Test coverage
+# Test coverage & Reports
 coverage.txt
 coverage.html
+test-report.html
 *.coverprofile
 
 # Sensitive credentials & Local configurations

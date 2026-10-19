@@ -7,13 +7,32 @@ tags:
   - log
   - changelog
 status: stable
-timestamp: 2026-10-16T20:53:00+09:00
+timestamp: 2026-10-19T21:40:00+09:00
 verified: true
 ---
 
 # 📜 Jira CLI Knowledge Log
 
 본 문서는 `knowledge/` 번들 내 지식 자산의 생성, 코드 변경에 따른 동기화 및 검증 이력을 기록합니다.
+
+## 2026-10-19 (JC-18: 안티패턴 단위 테스트 리팩토링 및 테스트 격리/가독성 개선)
+- **작업 티켓**: [JC-18](https://joincdream.atlassian.net/browse/JC-18)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. 단위 테스트 환경 호스트 캐시 디스크 누출 원천 차단 (`pkg/cache.go`):
+     - `GetCachedActiveIssueDefault`에서 테스트 러너 실행 시(`flag.Lookup("test.v") != nil`) 명시적 `XDG_CACHE_HOME` 격리가 없으면 호스트 머신의 `~/.cache/jira/state.db` 조회를 방지하도록 안전 가드 추가.
+     - 테스트 코드마다 `CachedActiveIssueResolver`를 몽키패칭하던 불필요한 의존성 전면 제거.
+  2. 커맨드 별칭(Alias) 테스트 순수 단위 테스트화 (`internal/app/app.go`, `internal/app/app_test.go`):
+     - `App.GetCommand(name string) (Command, bool)` 라우팅 조회 메서드 추가.
+     - `TestApp_Run_Aliases`를 기존의 무거운 파이프라인 관통(E2E) 방식에서 21개 별칭의 라우팅 맵 직접 매핑 검증으로 전환 (0.005초 내 100% 통과, 외부 사이드 이펙트 제로).
+  3. 테스트 실패 assertion 메시지 강화 (`internal/app/app_test.go`):
+     - `TestApp_Run_CommandMissingArgs`에서 종료 코드 불일치 시 `stderr` 및 `stdout` 캡처 문자열을 즉시 함께 출력하도록 단언문 보강.
+  4. 테스트 가독성 중심 Makefile 타깃 개선 (`Makefile`):
+     - `test-unit`의 기본 옵션을 노이즈 없는 `go test ./...`로 전환하여 실패 시 파일 위치/줄번호/diff만 즉각 노출되도록 개선.
+     - 상세 로그 확인용 `test-verbose`, 요약 리포터용 `test-pretty` 타깃 추가.
+  5. 검증:
+     - `make test` (단위 테스트 및 복잡도 검사 100% Pass)
+     - `make install` 빌드 배포 성공.
 
 ## 2026-10-18 (JC-17: 백그라운드 Watch 완료 상태 전이 이벤트 감지 픽스)
 - **작업 티켓**: [JC-17](https://joincdream.atlassian.net/browse/JC-17)
