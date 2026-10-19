@@ -15,6 +15,84 @@ verified: true
 
 본 문서는 `knowledge/` 번들 내 지식 자산의 생성, 코드 변경에 따른 동기화 및 검증 이력을 기록합니다.
 
+## 2026-10-18 (JC-17: 백그라운드 Watch 완료 상태 전이 이벤트 감지 픽스)
+- **작업 티켓**: [JC-17](https://joincdream.atlassian.net/browse/JC-17)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. 감시 JQL 쿼리 확장 (`pkg/watch.go`):
+     - `statusCategory != Done` 조건으로 인해 방금 완료된 티켓이 응답에서 제외되어 `STATUS_CHANGE` 이벤트를 발행하지 못하던 문제를 해결.
+     - JQL을 `project = '%s' AND (statusCategory != Done OR updated >= -1d) ORDER BY updated DESC`로 수정하여 최근 완료된 티켓도 Diff 대상에 포함.
+  2. 활성/완료 티켓 분리 처리:
+     - `DiffIssues`로 `STATUS_CHANGE`(진행 중 ➔ 완료) 이벤트를 정상 발행한 후, 활성 캐시/메모리(`inMemoryIssues`, `issues` 테이블)에는 `statusCategory != Done`인 미완료 티켓만 보관하고 완료된 티켓은 `PruneDeletedIssues`로 자동 정리.
+  3. 빈 키 슬라이스 Prune 버그 픽스 (`pkg/cache.go`):
+     - 모든 티켓이 완료되어 활성 티켓이 0개가 되었을 때 `PruneDeletedIssues`가 조기 리턴하던 버그 수정.
+  4. 테스트 검증:
+     - `pkg/watch_test.go`: 완료 상태 전이 이벤트 발행 및 활성 메모리/캐시 프루닝 단위 테스트 추가 (100% Pass).
+
+## 2026-10-18 (JC-17: TUI rivo/tview 2D 위젯 대시보드 엔진 전면 전환)
+- **작업 티켓**: [JC-17](https://joincdream.atlassian.net/browse/JC-17)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. `rivo/tview` 및 `gdamore/tcell/v2` 기반 2D 위젯 아키텍처 전환:
+     - 1차원 문자열 결합(Bubble Tea/Lip Gloss)의 근본적 한계(한글/이모지 폭 오차, 창 리사이즈 시 강제 줄바꿈 및 화면 상단 밀림)를 해소하기 위해 2차원 셀 캔버스 버퍼 엔진으로 전환.
+     - `internal/tui/app.go`: `tview.Application` 메인 루프, `tview.Flex` 기반 반응형 듀얼 패널 레이아웃 조립.
+     - `internal/tui/widgets.go`: 좌측 이슈 목록 `tview.Table` (헤더, 선택 하이라이트, `j/k` 이동), 우측 상단 `tview.TextView` (상세 카드, 동적 색상, 자동 스크롤), 우측 하단 `tview.TextView` (실시간 피드), 상단/하단 바 서식화.
+     - `internal/tui/tui_test.go`: 단위 및 네비게이션 테스트 100% 통과.
+     - 패널 크기 조절 및 전체화면(Zoom) 기능: `z` (상세 카드 전체화면 토글), `[`/`]` (좌우 분할 폭 5% 조절), `{`/`}` (상하 분할 높이 5% 조절) 단축키 지원.
+  2. 동시성 및 스레드 세이프 UI 업데이트:
+     - 백그라운드 `pkg.WatchEngine` 이벤트 채널과 `app.QueueUpdateDraw()` 연동으로 화면 깜빡임 없는 실시간 스트리밍 갱신.
+  3. 검증:
+     - `go test -v ./internal/tui ./pkg` 100% Pass.
+     - `CGO_ENABLED=0` Linux 및 macOS 크로스 컴파일 성공.
+     - `make install` 배포 완료.
+
+## 2026-10-18 (JC-17: TUI Viewport 도입 및 테두리 깨짐 방지 픽스)
+- **작업 티켓**: [JC-17](https://joincdream.atlassian.net/browse/JC-17)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. `github.com/charmbracelet/bubbles/viewport` 도입:
+     - 티켓 상세(Detail) 및 실시간 활동 피드(Activity Feed)에 뷰포트 위젯 적용.
+     - 긴 본문(Description) 및 개행문자가 포함되어도 고정된 가상 사각형 밖으로 넘치지 않도록 자동 클리핑(`overflow: hidden`) 및 스크롤(`ctrl+d`, `ctrl+u`, 마우스 휠) 지원.
+  2. Lip Gloss 가로/세로 프레임 오차 해결:
+     - Border(2) 및 Padding(2)을 고려한 내부 가용 폭(`innerWidth = width - 4`)으로 텍스트 및 선택 행 말줄임/패딩 기준 통일.
+     - 좌우 패널 합산 너비(`leftWidth + rightWidth == width`) 및 우측 상하 패널 합산 높이(`detailHeight + activityHeight == height`) 엄밀 일치로 터미널 강제 줄바꿈(Auto-Wrap) 완전 방지.
+  3. 개행문자 정제:
+     - Jira ADF 본문 텍스트 내 CRLF(`\r\n`)를 LF(`\n`)로 정규화하여 캐리지 리턴 커서 덮어쓰기 방지.
+  4. Makefile 인스톨 보강:
+     - `install -m 755`를 적용하여 바이너리 실행 중에도 `text file busy` 에러 없이 교체 설치 가능하도록 개선.
+
+## 2026-10-17 (JC-17: TUI Real-time Dashboard & Shared SQLite Cache Engine)
+- **작업 티켓**: [JC-17](https://joincdream.atlassian.net/browse/JC-17)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. Pure Go SQLite 공유 로컬 캐시 엔진 구현 (`pkg/cache.go`, `pkg/cache_test.go`):
+     - `modernc.org/sqlite` 드라이버 채택 (`CGO_ENABLED=0` 100% 순수 Go 호환).
+     - `~/.cache/jira/state.db` 단일 통합 DB 내 멀티 스페이스 인덱싱 (`spaces`, `issues`, `activities`, `active_context`).
+     - WAL 모드 및 5000ms busy_timeout 활성화로 고성능 읽기/쓰기 동시성 보장.
+     - `UpsertIssues`, `GetIssues`, `LogActivity`, `SetActiveIssue`, `PruneDeletedIssues` CRUD 지원.
+  2. SWR 증분 감시 및 In-Memory Diffing 엔진 구현 (`pkg/watch.go`, `pkg/watch_test.go`):
+     - Stale-While-Revalidate 패턴: 기동 시 0ms 즉시 이전 로컬 스냅샷 메모리 로드.
+     - 백그라운드 증분 폴링 및 In-Memory Diffing: `old.Status != new.Status` (상태 전이), `len(new.Comments) > len(old.Comments)` (코멘트 추가), `new.Assignee == me` (할당) 정밀 감지.
+     - 적응형 백오프(15s ➔ 30s ➔ 60s) 및 HTTP 429 방어.
+     - 장기 부재(7일 이상 휴가 등) 감지 시 Welcome Back 복귀 브리핑 카드 (`CatchupDigest`) 생성.
+  3. Bubble Tea + Lip Gloss TUI 콕핏 구현 (`internal/tui/model.go`, `internal/tui/view.go`, `internal/tui/tui_test.go`):
+     - Elm MUV 아키텍처, 더블 버퍼링, UTF-8 2칸 한글 줄맞춤 및 터미널 반응형 리사이즈 지원.
+     - 좌측 활성 이슈 목록 (42%), 우측 상단 티켓 상세 (55%), 우측 하단 실시간 변경 피드 (45%).
+     - 단축키: `↑/↓`, `j/k`(이동), `r`(즉시 동기화), `o`(브라우저 열기), `c`(활성 티켓 설정), `ESC`(브리핑 닫기), `q`(종료).
+     - `tea.WithAltScreen()` 적용으로 종료 시 터미널 화면 완벽 원복.
+  4. CLI 서브커맨드 연동 (`internal/app/commands_tui.go`, `internal/app/commands_issue.go`):
+     - `jira tui`: TUI 콕핏 실행.
+     - `jira watch`: 터미널 실시간 스트리밍 (`--json` 지원).
+     - `jira use <KEY>`: 활성 티켓 컨텍스트 설정 (`main` 브랜치에서도 Zero-Argument 타깃 바인딩 3순위 Fallback 연계).
+     - `jira list --cached`, `jira get --cached`: 오프라인 초고속 0ms 로컬 캐시 조회.
+     - `jira cache status`, `jira cache clean`: 캐시 관리.
+  5. 테스트 및 검증:
+     - `go test -v ./...` 100% Pass (단위 테스트 및 통합 Mock 테스트).
+     - `CGO_ENABLED=0 GOOS=linux go build ./...` 및 `CGO_ENABLED=0 GOOS=darwin go build ./...` 크로스 컴파일 성공.
+     - `make install` 배포 완료.
+- **검증 소스**:
+  - `pkg/cache.go`, `pkg/watch.go`, `internal/tui/*`, `internal/app/commands_tui.go`, `internal/app/commands_issue.go`
+
 ---
 
 ## 2026-10-17 (JC-14: Git Branch Context Auto-Binding / Zero-Argument Ticket Binding)

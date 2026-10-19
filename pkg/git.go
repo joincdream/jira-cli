@@ -117,22 +117,29 @@ func parseHeadFile(headPath string) (string, error) {
 }
 
 // ResolveIssueKey returns explicitKey if provided (uppercased), or automatically extracts
-// the issue key from the current Git branch.
+// ResolveIssueKey returns explicitKey if provided (uppercased), or automatically extracts
+// the issue key from the current Git branch, or falls back to the locally cached active issue.
 func ResolveIssueKey(ctx context.Context, explicitKey string) (string, error) {
 	trimmed := strings.TrimSpace(explicitKey)
 	if trimmed != "" {
 		return strings.ToUpper(trimmed), nil
 	}
 
-	branch, err := GetCurrentBranch(ctx)
-	if err != nil {
+	branch, branchErr := GetCurrentBranch(ctx)
+	if branchErr == nil {
+		if key, ok := ExtractIssueKey(branch); ok {
+			return key, nil
+		}
+	}
+
+	// 3. Fallback to active issue stored in local SQLite cache
+	if cachedKey := GetCachedActiveIssue(); cachedKey != "" {
+		return cachedKey, nil
+	}
+
+	if branchErr != nil {
 		return "", fmt.Errorf("%s", i18n.T("cmd.common.err_git_context_required"))
 	}
 
-	key, ok := ExtractIssueKey(branch)
-	if !ok {
-		return "", fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_no_issue_key_in_branch", branch))
-	}
-
-	return key, nil
+	return "", fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_no_issue_key_in_branch", branch))
 }

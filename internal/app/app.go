@@ -85,6 +85,12 @@ func (a *App) registerBuiltinCommands() {
 	a.Register(NewReportCommand(a.clientProvider))
 	a.Register(NewOpenCommand(a.clientProvider))
 	a.Register(NewInitAgentCommand())
+
+	// TUI & Local Cache commands
+	a.Register(NewTUICommand(a.clientProvider))
+	a.Register(NewWatchCommand(a.clientProvider))
+	a.Register(NewUseCommand(a.clientProvider))
+	a.Register(NewCacheCommand(a.clientProvider))
 }
 
 // PrintUsage outputs the usage message to the specified writer based on active language.
@@ -114,6 +120,10 @@ func (a *App) PrintUsage(w io.Writer) {
   report [flags]                 주간 업무 브리핑 및 프로젝트 진척 리포트 생성 (별칭: digest, summary)
   open [KEY] [flags]             이슈 또는 프로젝트 보드를 브라우저에서 열기 (별칭: browse)
   init-agent [flags]             AI 에이전트(Cursor, Claude, Antigravity) 연동 룰셋 초기화 (별칭: agent-init)
+  tui [flags]                    실시간 대시보드 및 TUI 콕핏 화면 실행 (별칭: cockpit, dashboard)
+  watch [flags]                  실시간 이슈 변경 이벤트 스트리밍 출력 (별칭: tail)
+  use [KEY] [--clear]            로컬 캐시에 활성 이슈 키 설정/조회 (별칭: set-active, current)
+  cache <clean|status>           로컬 SQLite 캐시 데이터베이스 관리
   labels                         표준 라벨 카탈로그 및 가이드 조회 (별칭: tags)
   configure [--profile <name>]   대화형 Jira 프로필 설정 (~/.config/jira/config, 별칭: config)
   configure list                 등록된 Jira 프로필 목록 조회
@@ -195,6 +205,10 @@ Commands:
   report [flags]                 Generate progress and weekly briefing report (alias: digest, summary)
   open [KEY] [flags]             Open issue or project board in browser (alias: browse)
   init-agent [flags]             Initialize AI agent (Cursor, Claude, Antigravity) rulesets (alias: agent-init)
+  tui [flags]                    Launch interactive TUI cockpit dashboard (alias: cockpit, dashboard)
+  watch [flags]                  Stream real-time issue updates and activity events (alias: tail)
+  use [KEY] [--clear]            Set or inspect active ticket in local cache (alias: set-active, current)
+  cache <clean|status>           Manage local SQLite cache database
   labels                         View standard labels catalog and guide (alias: tags)
   configure [--profile <name>]   Interactive configuration wizard (~/.config/jira/config, alias: config)
   configure list                 List configured Jira profiles
@@ -308,7 +322,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	commandName := cleanArgs[0]
 	cmd, exists := a.commands[commandName]
 	if !exists {
-		fmt.Fprintf(stderr, i18n.Sprintf("app.err_unknown_command", commandName))
+		fmt.Fprint(stderr, i18n.Sprintf("app.err_unknown_command", commandName))
 		a.PrintUsage(stderr)
 		return 1
 	}

@@ -142,7 +142,7 @@ func PrintLabelsCatalog(w io.Writer, catalog *LabelCatalog) {
 func printCategory(w io.Writer, key string, cat LabelCategory) {
 	fmt.Fprintf(w, "\n📁 [%s] %s\n", strings.ToUpper(key), cat.Name)
 	if cat.Description != "" {
-		fmt.Fprintf(w, i18n.Sprintf("pkg.labels.desc_prefix", cat.Description))
+		fmt.Fprint(w, i18n.Sprintf("pkg.labels.desc_prefix", cat.Description))
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)

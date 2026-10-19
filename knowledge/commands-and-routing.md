@@ -10,7 +10,7 @@ tags:
   - markdown
   - json
 status: stable
-timestamp: 2026-10-17T11:45:00+09:00
+timestamp: 2026-10-17T12:45:00+09:00
 sources:
   - internal/app/commands_issue.go
   - internal/app/commands_user.go
@@ -51,6 +51,10 @@ verified: true
 | `transitions` | - | `commands_issue.go` | 해당 티켓에서 전이 가능한 워크플로 상태 ID 및 이름 조회 |
 | `delete` | `rm` | `commands_issue.go` | 티켓 삭제 (단독 또는 하위작업 포함) |
 | `open` | `browse` | `commands_open.go` | 티켓 상세 페이지 또는 프로젝트 보드를 브라우저에서 열기 |
+| `tui` | `cockpit`, `dashboard` | `commands_tui.go` | Bubble Tea 기반 실시간 대시보드 및 터미널 콕핏 화면 실행 |
+| `watch` | `tail` | `commands_tui.go` | 실시간 이슈 변경 이벤트 스트리밍 출력 (`--json` 지원) |
+| `use` | `set-active`, `current` | `commands_tui.go` | 로컬 캐시에 전역 활성 이슈 키 설정/조회 (`--clear` 지원) |
+| `cache` | - | `commands_tui.go` | 로컬 SQLite 캐시 데이터베이스 관리 (`clean`, `status`) |
 | `init-agent` | - | `commands_agent.go` | AI 에이전트(Cursor, Claude Code, Antigravity) 연동 룰 및 SKILL 초기화 |
 | `report` | `digest`, `summary` | `commands_report.go` | 주간 업무 브리핑 및 프로젝트 진척 현황 요약 리포트 |
 | `labels` | `tags` | `commands_meta.go` | 프로젝트 표준 라벨 카탈로그 조회 |
@@ -195,22 +199,52 @@ jira list --assignee me --status open --detail --md
 
 개발자가 특정 이슈 브랜치(예: `feature/JC-14-git-binding`, `fix/JC-6-transition-error`)에서 작업 중일 때, 티켓 키 인수를 생략해도 CLI가 현재 Git 브랜치에서 이슈 키를 자동으로 추출하여 실행하는 무마찰(Zero-Argument) 인터페이스입니다.
 
-### 1) 동작 규칙 및 인수 우선순위
-1. **명시적 키 최우선**: 사용자가 명령어 인자로 티켓 키를 명시하면(예: `jira get JC-3`) 브랜치 키를 무시하고 명시된 키를 최우선 적용합니다.
-2. **키 인수 생략 시 자동 감지**:
-   - `jira get`: 브랜치 키의 상세 정보 조회 (`jira get --md`)
-   - `jira transitions`: 브랜치 키의 워크플로 전이 목록 조회
-   - `jira move <STATUS>`: 첫 번째 인자가 이슈 키 형식이 아니면 브랜치 키를 타깃으로 상태 전이
-   - `jira comment <MSG>`: 첫 번째 인자가 이슈 키 형식이 아니면 브랜치 키에 코멘트 등록
-   - `jira assign <USER>`: 인자가 1개일 때 브랜치 키를 대상으로 담당자 지정 (`jira assign me`)
-   - `jira edit [flags]`: 키 생략 시 브랜치 키의 필드 수정
-   - `jira open`: 키 생략 시 브랜치 키가 있으면 이슈 웹페이지 오픈, 없으면 프로젝트 보드 오픈
-3. **탐색 메커니즘 (`pkg/git.go`)**:
-   - 1차: `git rev-parse --abbrev-ref HEAD` (타임아웃 1초)
-   - 2차 Fallback: `.git/HEAD` 파일 직접 파싱 (Zero Subprocess)
-   - 정규식 추출: `(?i)(?:^|[^A-Za-z0-9])([A-Za-z][A-Za-z0-9_]*-[0-9]+)(?:[^0-9]|$)`
-4. **가이드 에러 안내**:
-   - 키가 없는 브랜치(예: `main`, `master`)나 비-Git 저장소에서 키 없이 실행 시 직관적인 액션 가이드 에러를 출력하고 Exit code 1을 반환합니다.
+### 1) 동작 규칙 및 인수 3단계 우선순위 (3-Tier Resolution)
+1. **1순위 (명시적 인자)**: 사용자가 명령어 인자로 티켓 키를 명시하면(예: `jira get JC-3`) 최우선 적용합니다.
+2. **2순위 (Git 브랜치 자동 감지)**:
+   - 현재 브랜치 이름(예: `feature/JC-17-tui`)에서 이슈 키(`JC-17`)를 자동 추출합니다.
+3. **3순위 (로컬 캐시 활성 컨텍스트 Fallback)**:
+   - `main` 브랜치나 비-Git 디렉토리 환경이라도 `jira use JC-17`로 설정된 활성 티켓 키(`active_context` 테이블)가 존재하면 이를 자동으로 바인딩합니다.
+4. **키 생략 지원 명령어**:
+   - `jira get`: 활성/브랜치 키의 상세 정보 조회 (`jira get --md`)
+   - `jira transitions`: 활성/브랜치 키의 워크플로 전이 목록 조회
+   - `jira move <STATUS>`: 첫 번째 인자가 이슈 키 형식이 아니면 바인딩된 키를 타깃으로 상태 전이
+   - `jira comment <MSG>`: 첫 번째 인자가 이슈 키 형식이 아니면 바인딩된 키에 코멘트 등록
+   - `jira assign <USER>`: 인자가 1개일 때 바인딩된 키를 대상으로 담당자 지정 (`jira assign me`)
+   - `jira edit [flags]`: 키 생략 시 바인딩된 키의 필드 수정
+   - `jira open`: 키 생략 시 바인딩된 키의 이슈 웹페이지 오픈
+5. **가이드 에러 안내**:
+   - 인자, 브랜치, 캐시 활성 컨텍스트 3단계 모두 키가 없을 경우 직관적인 액션 가이드 에러를 출력하고 Exit code 1을 반환합니다.
+
+---
+
+## 🖥️ 9. 실시간 대시보드 및 감시 엔진 (`jira tui`, `jira watch`)
+
+### 1) Bubble Tea TUI 콕핏 (`jira tui`)
+- Go TUI 업계 표준인 `bubbletea` + `lipgloss` 기반 터미널 전용 대시보드입니다.
+- **주요 레이아웃**:
+  - 좌측 패널 (42%): 활성 이슈 목록 (커서 이동, 상태별 배지, 제목 말줄임)
+  - 우측 상단 (55%): 선택된 티켓 상세 카드 (키, 상태, 담당자, 설명 ADF 파싱 텍스트)
+  - 우측 하단 (45%): 백그라운드 Diffing 엔진이 수집한 실시간 변경 피드 (Activity Stream)
+  - 상단/하단: 연결 스페이스 배지, 실시간 동기화 상태 (`LIVE WATCHING`), 단축키 레퍼런스
+- **단축키**: `↑/↓`, `j/k`(이동), `r`(즉시 동기화), `o`(브라우저 열기), `c`(활성 티켓 설정), `ESC`(브리핑 닫기), `q`(종료).
+- **AltScreen 버퍼**: 종료 시 화면이 원래 터미널로 완전히 복원됩니다.
+
+### 2) CLI 실시간 스트리머 (`jira watch`)
+- TUI 없이 터미널 표준 출력으로 변경 이벤트를 tail -f 형태로 실시간 스트리밍합니다.
+- `--json` 플래그 사용 시 AI Agent나 파이프라인에서 수신하기 쉬운 스트림 JSON 라인으로 출력합니다.
+- 적응형 백오프(15s ➔ 30s ➔ 60s) 및 HTTP 429 Retry-After를 자체적으로 방어합니다.
+
+---
+
+## ⚡ 10. 로컬 공유 SQLite 캐시 엔진 (`~/.cache/jira/state.db`)
+
+Pure Go SQLite(`modernc.org/sqlite`, CGO_ENABLED=0)를 활용하여 0ms 기동(Stale-While-Revalidate)과 오프라인 조회를 지원합니다:
+- **`jira list --cached`**: 네트워크 호출 없이 로컬 SQLite DB에서 이슈 목록 즉시 반환.
+- **`jira get --cached <KEY>`**: 로컬 캐시에 저장된 티켓 상세 정보 즉시 반환.
+- **`jira cache status`**: 캐시 파일 경로, 파일 크기, 저장된 이슈 수, 실시간 이벤트 수, 활성 티켓 표시.
+- **`jira cache clean`**: 캐시 DB 및 WAL 저널 파일을 안전하게 삭제하고 초기화.
+- **장기 부재 브리핑 (Welcome Back Digest)**: 7일 이상 동기화가 중단된 후 재기동 시 부재 중 변경된 내 티켓과 신규 할당 작업을 요약 브리핑 카드로 출력.
 
 
 

@@ -177,5 +177,9 @@
   "cmd.init_agent.footer": "\n🎉 AI 에이전트 룰셋이 성공적으로 구성되었습니다. 에이전트가 Jira CLI를 활용하여 자율 작업할 수 있습니다.\n",
   "cmd.init_agent.err_invalid_type": "유효하지 않은 에이전트 유형: '%s' (선택: cursor, claude, antigravity, all)",
   "cmd.init_agent.prompt_title": "🤖 초기화할 AI 에이전트 룰셋을 선택하세요 (쉼표로 다중 선택, 엔터 시 전체 선택):\n  [1] Cursor IDE        (.cursor/rules/jira.mdc)\n  [2] Claude Code       (CLAUDE.md)\n  [3] Antigravity       (.agents/skills/jira/SKILL.md)\n  [4] 전체 선택 (All)\n\n선택 번호 입력 (기본값: 4): ",
-  "cmd.init_agent.prompt_invalid": "선택 번호가 올바르지 않습니다: '%s'"
+  "cmd.init_agent.prompt_invalid": "선택 번호가 올바르지 않습니다: '%s'",
+  "cmd.tui.desc": "실시간 대시보드 및 TUI 콕핏 화면을 실행합니다.",
+  "cmd.watch.desc": "실시간 이슈 변경 이벤트 스트림을 터미널에 출력합니다.",
+  "cmd.use.desc": "로컬 캐시에 활성 이슈 키를 설정하거나 조회합니다.",
+  "cmd.cache.desc": "로컬 SQLite 캐시 데이터베이스를 관리합니다 (clean, status)."
 }

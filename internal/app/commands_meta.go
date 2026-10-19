@@ -41,7 +41,7 @@ func (c *VersionCommand) Aliases() []string  { return []string{"-v", "--version"
 func (c *VersionCommand) Description() string { return i18n.T("cmd.version.desc") }
 
 func (c *VersionCommand) Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.version.output", c.version))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.version.output", c.version))
 	return nil
 }
 

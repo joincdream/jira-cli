@@ -137,7 +137,7 @@ func (c *InitAgentCommand) Execute(ctx context.Context, args []string, stdout, s
 				}
 			}
 			if len(targets) == 0 {
-				return fmt.Errorf(i18n.Sprintf("cmd.init_agent.err_invalid_type", normType))
+				return fmt.Errorf("%s", i18n.Sprintf("cmd.init_agent.err_invalid_type", normType))
 			}
 		}
 	}
@@ -151,14 +151,14 @@ func (c *InitAgentCommand) Execute(ctx context.Context, args []string, stdout, s
 		base = cwd
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.init_agent.header", base))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.init_agent.header", base))
 
 	for _, target := range targets {
 		destPath := filepath.Join(base, target.Path)
 
 		// Check if file already exists
 		if _, err := os.Stat(destPath); err == nil && !force {
-			fmt.Fprintf(stdout, i18n.Sprintf("cmd.init_agent.skipped", target.Desc, target.Path))
+			fmt.Fprint(stdout, i18n.Sprintf("cmd.init_agent.skipped", target.Desc, target.Path))
 			continue
 		}
 
@@ -177,10 +177,10 @@ func (c *InitAgentCommand) Execute(ctx context.Context, args []string, stdout, s
 			return fmt.Errorf("failed to write file %q: %w", destPath, err)
 		}
 
-		fmt.Fprintf(stdout, i18n.Sprintf("cmd.init_agent.created", target.Desc, target.Path))
+		fmt.Fprint(stdout, i18n.Sprintf("cmd.init_agent.created", target.Desc, target.Path))
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.init_agent.footer"))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.init_agent.footer"))
 	return nil
 }
 
@@ -216,7 +216,7 @@ func parseInteractiveSelection(input string, allTargets []AgentTarget) ([]AgentT
 		case "4", "all":
 			return allTargets, nil
 		default:
-			return nil, fmt.Errorf(i18n.Sprintf("cmd.init_agent.prompt_invalid", t))
+			return nil, fmt.Errorf("%s", i18n.Sprintf("cmd.init_agent.prompt_invalid", t))
 		}
 
 		if !seen[targetType] {

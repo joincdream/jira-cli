@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jira TUI Cockpit - Terminal Preview</title>
+  <style>
+    :root {
+      --bg-dark: #0f141c;
+      --term-bg: #161b22;
+      --border-color: #30363d;
+      --text-main: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent-blue: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-yellow: #d29922;
+      --accent-purple: #bc8cff;
+      --highlight-bg: #21262d;
+      --active-row: #1f3554;
+    }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace, Consolas;
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    .container {
+      width: 100%;
+      max-width: 1040px;
+    }
+    .header-bar {
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-bar h1 {
+      font-size: 1.1rem;
+      margin: 0;
+      color: var(--accent-blue);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .terminal-window {
+      background: var(--term-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .window-titlebar {
+      background: #1c2128;
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    .window-dots {
+      display: flex;
+      gap: 8px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+    .title-text {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+    .status-badge {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+    .terminal-body {
+      display: grid;
+      grid-template-columns: 1.1fr 1.3fr;
+      min-height: 480px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .panel {
+      padding: 16px;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    .panel-left {
+      border-right: 1px solid var(--border-color);
+    }
+    .panel-header {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px dashed var(--border-color);
+      display: flex;
+      justify-content: space-between;
+    }
+    .issue-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .issue-item:hover {
+      background: var(--highlight-bg);
+    }
+    .issue-item.active {
+      background: var(--active-row);
+      border-left: 3px solid var(--accent-blue);
+      font-weight: 600;
+    }
+    .issue-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .issue-key {
+      color: var(--accent-blue);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .issue-summary {
+      color: var(--text-main);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .badge {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .badge-in-progress {
+      background: rgba(210, 153, 34, 0.2);
+      color: var(--accent-yellow);
+      border: 1px solid rgba(210, 153, 34, 0.4);
+    }
+    .badge-todo {
+      background: rgba(139, 148, 158, 0.15);
+      color: var(--text-dim);
+      border: 1px solid var(--border-color);
+    }
+    .badge-done {
+      background: rgba(63, 185, 80, 0.2);
+      color: var(--accent-green);
+      border: 1px solid rgba(63, 185, 80, 0.4);
+    }
+    .panel-right {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: #141920;
+    }
+    .detail-card {
+      background: var(--term-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 14px;
+    }
+    .detail-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #f0f6fc;
+      margin-bottom: 8px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 14px;
+      font-size: 0.8rem;
+      margin-bottom: 12px;
+      color: var(--text-dim);
+    }
+    .meta-label { color: var(--text-dim); }
+    .meta-value { color: var(--text-main); font-weight: 500; }
+    .detail-desc {
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: #8b949e;
+      border-top: 1px solid var(--border-color);
+      padding-top: 10px;
+    }
+    .activity-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .activity-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.78rem;
+    }
+    .feed-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 8px 10px;
+      border-radius: 5px;
+      background: rgba(33, 38, 45, 0.5);
+      border-left: 2px solid var(--accent-purple);
+    }
+    .feed-time {
+      color: var(--text-dim);
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .feed-content {
+      color: var(--text-main);
+      line-height: 1.4;
+    }
+    .feed-content strong {
+      color: var(--accent-blue);
+    }
+    .footer-bar {
+      background: #12161c;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border-color);
+    }
+    .key-group {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .key-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .kbd {
+      background: #21262d;
+      border: 1px solid #363b42;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.72rem;
+      color: #f0f6fc;
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header-bar">
+      <h1>⚡ Jira CLI TUI Cockpit Visual Mockup</h1>
+      <span class="status-badge">● Zero-Dependency ANSI Architecture</span>
+    </div>
+
+    <div class="terminal-window">
+      <!-- Title Bar -->
+      <div class="window-titlebar">
+        <div class="window-dots">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+        </div>
+        <div class="title-text">jira tui — Project: JC (Watch Active)</div>
+        <div class="status-badge">Sync: 15s ago</div>
+      </div>
+
+      <!-- Main Body -->
+      <div class="terminal-body">
+        <!-- Left Panel: Issues List -->
+        <div class="panel panel-left">
+          <div class="panel-header">
+            <span>Active Issues (4)</span>
+            <span>↑/↓ or j/k to move</span>
+          </div>
+
+          <div class="issue-item active">
+            <div class="issue-left">
+              <span class="issue-key">JC-17</span>
+              <span class="issue-summary">jira tui 실시간 대시보드 및 캐시</span>
+            </div>
+            <span class="badge badge-in-progress">진행 중</span>
+          </div>
+
+          <div class="issue-item">
+            <div class="issue-left">
+              <span class="issue-key">JC-15</span>
+              <span class="issue-summary">토큰 절약형 맥락 주입 엔진</span>
+            </div>
+            <span class="badge badge-todo">할 일</span>
+          </div>
+
+          <div class="issue-item">
+            <div class="issue-left">
+              <span class="issue-key">JC-6</span>
+              <span class="issue-summary">상태 전이 화면 에러 가이드 강화</span>
+            </div>
+            <span class="badge badge-todo">할 일</span>
+          </div>
+
+          <div class="issue-item">
+            <div class="issue-left">
+              <span class="issue-key">JC-7</span>
+              <span class="issue-summary">오픈소스 배포 자동화 파이프라인</span>
+            </div>
+            <span class="badge badge-todo">할 일</span>
+          </div>
+        </div>
+
+        <!-- Right Panel: Detail & Activity Feed -->
+        <div class="panel panel-right">
+          <!-- Issue Detail Card -->
+          <div class="detail-card">
+            <div class="detail-title">[JC-17] jira tui 실시간 대시보드 및 공유 캐시 감시(Watch) 엔진 구현</div>
+            <div class="meta-grid">
+              <span class="meta-label">• 상태:</span>
+              <span class="meta-value"><span class="badge badge-in-progress">진행 중 (In Progress)</span></span>
+              <span class="meta-label">• 담당자:</span>
+              <span class="meta-value">윤상배 (joinc.dream@gmail.com)</span>
+              <span class="meta-label">• 라벨:</span>
+              <span class="meta-value"><code>AI</code>, <code>Architecture</code>, <code>Development</code></span>
+            </div>
+            <div class="detail-desc">
+              터미널 기반 상시 대시보드(TUI)를 제공하고 백그라운드에서 실시간 변경사항을 감시하여 AI 에이전트와 개발자 간의 실시간 가시성을 확보하고 API 지연을 극소화합니다.
+            </div>
+          </div>
+
+          <!-- Activity Stream -->
+          <div class="activity-section">
+            <div class="panel-header">
+              <span>⚡ Live Activity Stream</span>
+              <span>Auto-refreshing</span>
+            </div>
+            <div class="activity-feed">
+              <div class="feed-item">
+                <span class="feed-time">11:59:28</span>
+                <span class="feed-content"><strong>[JC-17]</strong> 상태 전이됨 ➔ <span class="badge badge-in-progress">진행 중</span></span>
+              </div>
+              <div class="feed-item">
+                <span class="feed-time">11:56:39</span>
+                <span class="feed-content"><strong>[JC-14]</strong> 코멘트 등록됨: <em>"Zero-Argument Ticket Binding 구현 및 테스트 완료"</em></span>
+              </div>
+              <div class="feed-item">
+                <span class="feed-time">11:47:24</span>
+                <span class="feed-content"><strong>[JC-14]</strong> 단위 및 E2E 테스트 100% 통과 (Build: 5532e61)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Bar -->
+      <div class="footer-bar">
+        <div class="key-group">
+          <div class="key-item"><span class="kbd">j/k</span> 이동</div>
+          <div class="key-item"><span class="kbd">Enter</span> 상세</div>
+          <div class="key-item"><span class="kbd">m</span> 상태전이</div>
+          <div class="key-item"><span class="kbd">c</span> 코멘트</div>
+          <div class="key-item"><span class="kbd">o</span> 웹오픈</div>
+          <div class="key-item"><span class="kbd">r</span> 동기화</div>
+          <div class="key-item"><span class="kbd">q</span> 종료</div>
+        </div>
+        <div>Profile: <strong>default</strong> (joincdream.atlassian.net)</div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

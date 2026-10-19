@@ -101,8 +101,8 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 	}
 
 	fmt.Fprintln(stdout, i18n.T("cmd.configure.wizard_title"))
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.target_file", targetPath))
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.target_profile", profile))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.configure.target_file", targetPath))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.configure.target_profile", profile))
 
 	existingProfiles, _ := pkg.ListProfiles(targetPath)
 	hasBaseProfiles := false
@@ -156,7 +156,7 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 				return fmt.Errorf("%s", i18n.Sprintf("cmd.configure.err_save", targetPath, err))
 			}
 
-			fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.save_success", targetPath, profile))
+			fmt.Fprint(stdout, i18n.Sprintf("cmd.configure.save_success", targetPath, profile))
 			return nil
 		}
 	}
@@ -201,7 +201,7 @@ func (c *ConfigureCommand) Execute(ctx context.Context, args []string, stdout, s
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.configure.err_save", targetPath, err))
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.save_success", targetPath, profile))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.configure.save_success", targetPath, profile))
 	return nil
 }
 
@@ -212,7 +212,7 @@ func (c *ConfigureCommand) listProfiles(configPath string, stdout io.Writer) err
 	}
 
 	if len(profiles) == 0 {
-		fmt.Fprintf(stdout, i18n.Sprintf("cmd.configure.no_profiles", configPath))
+		fmt.Fprint(stdout, i18n.Sprintf("cmd.configure.no_profiles", configPath))
 		return nil
 	}
 

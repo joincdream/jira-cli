@@ -76,7 +76,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
-	var all, detail, mine bool
+	var all, detail, mine, cached bool
 	var due, status, assignee string
 
 	fs.BoolVar(&all, "all", false, i18n.T("cmd.list.flag_all"))
@@ -84,6 +84,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 	fs.BoolVar(&detail, "detail", false, i18n.T("cmd.list.flag_detail"))
 	fs.BoolVar(&detail, "d", false, i18n.T("cmd.list.flag_detail"))
 	fs.BoolVar(&mine, "mine", false, i18n.T("cmd.list.flag_mine"))
+	fs.BoolVar(&cached, "cached", false, "Read from local SQLite cache instead of remote Jira")
 	fs.StringVar(&due, "due", "", i18n.T("cmd.list.flag_due"))
 	fs.StringVar(&status, "status", "", i18n.T("cmd.list.flag_status"))
 	fs.StringVar(&assignee, "assignee", "", i18n.T("cmd.list.flag_assignee"))
@@ -120,30 +121,66 @@ func (c *ListCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
 	}
 
-	var jql string
-	if len(posArgs) > 0 {
-		var parts []string
-		for _, pa := range posArgs {
-			parts = append(parts, pa.Value)
-		}
-		jql = strings.Join(parts, " ")
-	} else {
-		filterOpts := ListFilterOptions{
-			All:      all,
-			Due:      due,
-			Status:   status,
-			Assignee: assignee,
-		}
-		builtJQL, err := BuildFilterJQL(client.GetConfig().ProjectKey, filterOpts)
-		if err != nil {
-			return err
-		}
-		jql = builtJQL
-	}
+	var issues []pkg.Issue
 
-	issues, err := client.ListIssuesWithOptions(ctx, jql, pkg.ListIssuesOptions{Detail: detail})
-	if err != nil {
-		return fmt.Errorf("%s", i18n.Sprintf("cmd.list.err_fetch", err))
+	if cached {
+		cachePath, err := pkg.GetDefaultCachePath()
+		if err != nil {
+			return fmt.Errorf("failed to get cache path: %w", err)
+		}
+		cacheDB, err := pkg.OpenCacheDB(cachePath)
+		if err != nil {
+			return fmt.Errorf("failed to open local cache: %w", err)
+		}
+		defer cacheDB.Close()
+
+		space := client.GetConfig().ProjectKey
+		statusFilter := status
+		if all {
+			statusFilter = "all"
+		} else if statusFilter == "" {
+			statusFilter = "open"
+		}
+		cachedIssues, err := cacheDB.GetIssues(space, statusFilter)
+		if err != nil {
+			return fmt.Errorf("failed to read from cache: %w", err)
+		}
+		issues = cachedIssues
+	} else {
+		var jql string
+		if len(posArgs) > 0 {
+			var parts []string
+			for _, pa := range posArgs {
+				parts = append(parts, pa.Value)
+			}
+			jql = strings.Join(parts, " ")
+		} else {
+			filterOpts := ListFilterOptions{
+				All:      all,
+				Due:      due,
+				Status:   status,
+				Assignee: assignee,
+			}
+			builtJQL, err := BuildFilterJQL(client.GetConfig().ProjectKey, filterOpts)
+			if err != nil {
+				return err
+			}
+			jql = builtJQL
+		}
+
+		fetched, err := client.ListIssuesWithOptions(ctx, jql, pkg.ListIssuesOptions{Detail: detail})
+		if err != nil {
+			return fmt.Errorf("%s", i18n.Sprintf("cmd.list.err_fetch", err))
+		}
+		issues = fetched
+
+		// Transparently populate local cache
+		if cachePath, err := pkg.GetDefaultCachePath(); err == nil {
+			if cacheDB, err := pkg.OpenCacheDB(cachePath); err == nil {
+				_ = cacheDB.UpsertIssues(client.GetConfig().ProjectKey, fetched)
+				_ = cacheDB.Close()
+			}
+		}
 	}
 
 	switch format {
@@ -190,6 +227,17 @@ func (c *GetCommand) Execute(ctx context.Context, args []string, stdout, stderr 
 		return err
 	}
 
+	var cached bool
+	var filteredCleanArgs []string
+	for _, a := range cleanArgs {
+		if a == "--cached" {
+			cached = true
+		} else {
+			filteredCleanArgs = append(filteredCleanArgs, a)
+		}
+	}
+	cleanArgs = filteredCleanArgs
+
 	var explicitKey string
 	if len(cleanArgs) > 0 {
 		explicitKey = cleanArgs[0]
@@ -200,14 +248,50 @@ func (c *GetCommand) Execute(ctx context.Context, args []string, stdout, stderr 
 		return err
 	}
 
-	client, err := c.clientProvider()
-	if err != nil {
-		return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
-	}
+	var issue *pkg.Issue
+	if cached {
+		cachePath, err := pkg.GetDefaultCachePath()
+		if err != nil {
+			return fmt.Errorf("failed to get cache path: %w", err)
+		}
+		cacheDB, err := pkg.OpenCacheDB(cachePath)
+		if err != nil {
+			return fmt.Errorf("failed to open local cache: %w", err)
+		}
+		defer cacheDB.Close()
 
-	issue, err := client.GetIssue(ctx, key)
-	if err != nil {
-		return fmt.Errorf("%s", i18n.Sprintf("cmd.get.err_fetch", key, err))
+		allIssues, err := cacheDB.GetIssues("", "all")
+		if err != nil {
+			return fmt.Errorf("failed to read from cache: %w", err)
+		}
+		for _, iss := range allIssues {
+			if strings.EqualFold(iss.Key, key) {
+				issue = &iss
+				break
+			}
+		}
+		if issue == nil {
+			return fmt.Errorf("issue %s not found in local cache", key)
+		}
+	} else {
+		client, err := c.clientProvider()
+		if err != nil {
+			return fmt.Errorf("%s", i18n.Sprintf("cmd.common.err_client_init", err))
+		}
+
+		fetched, err := client.GetIssue(ctx, key)
+		if err != nil {
+			return fmt.Errorf("%s", i18n.Sprintf("cmd.get.err_fetch", key, err))
+		}
+		issue = fetched
+
+		// Transparently update cache
+		if cachePath, err := pkg.GetDefaultCachePath(); err == nil {
+			if cacheDB, err := pkg.OpenCacheDB(cachePath); err == nil {
+				_ = cacheDB.UpsertIssues(client.GetConfig().ProjectKey, []pkg.Issue{*fetched})
+				_ = cacheDB.Close()
+			}
+		}
 	}
 
 	switch format {
@@ -350,9 +434,9 @@ func (c *CreateCommand) Execute(ctx context.Context, args []string, stdout, stde
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.create.err_api_create", err))
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.create.success", resp.Key, client.GetConfig().InstanceURL, resp.Key))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.create.success", resp.Key, client.GetConfig().InstanceURL, resp.Key))
 	if len(labels) > 0 {
-		fmt.Fprintf(stdout, i18n.Sprintf("cmd.create.applied_labels", strings.Join(labels, ", ")))
+		fmt.Fprint(stdout, i18n.Sprintf("cmd.create.applied_labels", strings.Join(labels, ", ")))
 	}
 
 	return nil
@@ -524,7 +608,7 @@ func (c *EditCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.edit.err_api_update", key, err))
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.edit.success", key, strings.Join(updatedItems, " | ")))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.edit.success", key, strings.Join(updatedItems, " | ")))
 	return nil
 }
 
@@ -576,7 +660,7 @@ func (c *MoveCommand) Execute(ctx context.Context, args []string, stdout, stderr
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.move.err_transition", err))
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.move.success", key, targetStatus))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.move.success", key, targetStatus))
 	return nil
 }
 
@@ -628,7 +712,7 @@ func (c *CommentCommand) Execute(ctx context.Context, args []string, stdout, std
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.comment.err_api_comment", err))
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.comment.success", key))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.comment.success", key))
 	return nil
 }
 
@@ -670,9 +754,9 @@ func (c *TransitionsCommand) Execute(ctx context.Context, args []string, stdout,
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.transitions.err_fetch", err))
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.transitions.header", key))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.transitions.header", key))
 	for _, t := range transitions {
-		fmt.Fprintf(stdout, i18n.Sprintf("cmd.transitions.item", t.ID, t.Name, t.To.Name))
+		fmt.Fprint(stdout, i18n.Sprintf("cmd.transitions.item", t.ID, t.Name, t.To.Name))
 	}
 	return nil
 }
@@ -710,7 +794,7 @@ func (c *DeleteCommand) Execute(ctx context.Context, args []string, stdout, stde
 		return fmt.Errorf("%s", i18n.Sprintf("cmd.delete.err_api_delete", key, err))
 	}
 
-	fmt.Fprintf(stdout, i18n.Sprintf("cmd.delete.success", key))
+	fmt.Fprint(stdout, i18n.Sprintf("cmd.delete.success", key))
 	return nil
 }
 
@@ -755,12 +839,16 @@ func (c *AssignCommand) Execute(ctx context.Context, args []string, stdout, stde
 
 	var key, userQuery string
 	if len(posArgs) == 1 {
-		userQuery = strings.TrimSpace(posArgs[0].Value)
+		val := strings.TrimSpace(posArgs[0].Value)
+		if pkg.IsIssueKey(val) {
+			return fmt.Errorf("%s", i18n.T("cmd.assign.err_missing_args"))
+		}
 		resolvedKey, err := pkg.ResolveIssueKey(ctx, "")
 		if err != nil {
 			return err
 		}
 		key = resolvedKey
+		userQuery = val
 	} else {
 		first := strings.TrimSpace(posArgs[0].Value)
 		if pkg.IsIssueKey(first) {
@@ -795,13 +883,13 @@ func (c *AssignCommand) Execute(ctx context.Context, args []string, stdout, stde
 	}
 
 	if resolvedUser.AccountID == "" {
-		fmt.Fprintf(stdout, i18n.Sprintf("cmd.assign.success_cleared", key))
+		fmt.Fprint(stdout, i18n.Sprintf("cmd.assign.success_cleared", key))
 	} else {
 		userInfo := resolvedUser.DisplayName
 		if resolvedUser.EmailAddress != "" {
 			userInfo = fmt.Sprintf("%s (%s)", resolvedUser.DisplayName, resolvedUser.EmailAddress)
 		}
-		fmt.Fprintf(stdout, i18n.Sprintf("cmd.assign.success", key, userInfo))
+		fmt.Fprint(stdout, i18n.Sprintf("cmd.assign.success", key, userInfo))
 	}
 
 	return nil
