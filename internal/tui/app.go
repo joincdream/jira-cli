@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,13 +15,18 @@ import (
 // Cockpit represents the tview-based interactive Jira dashboard.
 type Cockpit struct {
 	app        *tview.Application
+	pages      *tview.Pages
 	space      string
 	baseURL    string
 	engine     *pkg.WatchEngine
 	cacheDB    *pkg.CacheDB
 	client     *pkg.Client
 
-	issues     []pkg.Issue
+	issues           []pkg.Issue
+	filteredIssues   []pkg.Issue
+	selectedStatuses map[string]bool
+	filterActive     bool
+
 	activities []pkg.ActivityEvent
 	digest     *pkg.CatchupDigest
 	showDigest bool
@@ -74,25 +80,30 @@ func NewCockpit(space, baseURL string, engine *pkg.WatchEngine, cache *pkg.Cache
 	}
 
 	c := &Cockpit{
-		app:          tview.NewApplication(),
-		space:        space,
-		baseURL:      baseURL,
-		engine:       engine,
-		cacheDB:      cache,
-		client:       client,
-		issues:       initialIssues,
-		activities:   initialActivities,
-		digest:       digest,
-		showDigest:   showDigest,
-		leftRatio:    42,
-		detailRatio:  55,
-		zoomMode:     false,
-		syncState:    "LIVE WATCHING",
-		lastSyncTime: time.Now(),
-		statusMsg:    "Ready. [j/k] navigate, [z] zoom, [[/]] width, [r] sync, [q] quit",
+		app:              tview.NewApplication(),
+		pages:            tview.NewPages(),
+		space:            space,
+		baseURL:          baseURL,
+		engine:           engine,
+		cacheDB:          cache,
+		client:           client,
+		issues:           initialIssues,
+		filteredIssues:   initialIssues,
+		selectedStatuses: make(map[string]bool),
+		filterActive:     false,
+		activities:       initialActivities,
+		digest:           digest,
+		showDigest:       showDigest,
+		leftRatio:        42,
+		detailRatio:      55,
+		zoomMode:         false,
+		syncState:        "LIVE WATCHING",
+		lastSyncTime:     time.Now(),
+		statusMsg:        "Ready. [j/k] navigate, [f] filter, [z] zoom, [r] sync, [q] quit",
 	}
 
 	c.initUI()
+	c.pages.AddPage("main", c.rootFlex, true, true)
 	return c
 }
 
@@ -131,10 +142,11 @@ func (c *Cockpit) initUI() {
 
 	// Add j/k key navigation inside Table
 	c.table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		displayIssues := c.getDisplayIssues()
 		switch event.Rune() {
 		case 'j':
 			row, col := c.table.GetSelection()
-			if row < len(c.issues)-1 {
+			if row < len(displayIssues)-1 {
 				c.table.Select(row+1, col)
 			}
 			return nil
@@ -148,8 +160,8 @@ func (c *Cockpit) initUI() {
 			c.table.Select(0, 0)
 			return nil
 		case 'G':
-			if len(c.issues) > 0 {
-				c.table.Select(len(c.issues)-1, 0)
+			if len(displayIssues) > 0 {
+				c.table.Select(len(displayIssues)-1, 0)
 			}
 			return nil
 		}
@@ -193,6 +205,10 @@ func (c *Cockpit) initUI() {
 
 	// Global Key Bindings
 	c.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if c.pages != nil && c.pages.HasPage("filterModal") {
+			return event
+		}
+
 		switch event.Key() {
 		case tcell.KeyCtrlC:
 			c.app.Stop()
@@ -215,6 +231,9 @@ func (c *Cockpit) initUI() {
 		switch event.Rune() {
 		case 'q':
 			c.app.Stop()
+			return nil
+		case 'f':
+			c.showStatusFilterModal()
 			return nil
 		case 'z':
 			c.zoomMode = !c.zoomMode
@@ -313,7 +332,7 @@ func (c *Cockpit) updateDigest() {
 }
 
 func (c *Cockpit) updateFooter() {
-	hints := "[#7A869A][↑/↓, j/k] Nav  [z] Zoom  [[/]] Width  [{/}] Height  [r] Sync  [o] Browser  [c] Active  [q] Quit[-]"
+	hints := "[#7A869A][↑/↓, j/k] Nav  [f] Filter  [z] Zoom  [[/]] Width  [{/}] Height  [r] Sync  [o] Browser  [c] Active  [q] Quit[-]"
 	if c.zoomMode {
 		hints = "[#7A869A][↑/↓, j/k] Scroll Details  [z/ESC] Restore  [o] Browser  [q] Quit[-]"
 	}
@@ -336,16 +355,52 @@ func (c *Cockpit) setStatus(msg string) {
 	}()
 }
 
+func (c *Cockpit) getDisplayIssues() []pkg.Issue {
+	if !c.filterActive {
+		return c.issues
+	}
+	return c.filteredIssues
+}
+
+func (c *Cockpit) applyFilter() {
+	if !c.filterActive {
+		c.filteredIssues = c.issues
+		return
+	}
+	c.filteredIssues = FilterIssuesByStatus(c.issues, c.selectedStatuses)
+}
+
 func (c *Cockpit) refreshIssuesTable() {
 	c.table.Clear()
-	c.table.SetTitle(fmt.Sprintf(" 📋 Active Issues (%d) ", len(c.issues)))
 
-	if len(c.issues) == 0 {
-		c.table.SetCell(0, 0, tview.NewTableCell("  No cached issues found. Waiting for sync...").SetTextColor(colorMuted))
+	displayIssues := c.getDisplayIssues()
+	if c.filterActive {
+		var activeList []string
+		for _, st := range GetUniqueStatuses(c.issues) {
+			if c.selectedStatuses[st] {
+				activeList = append(activeList, st)
+			}
+		}
+		filterDesc := strings.Join(activeList, ", ")
+		if len(filterDesc) > 30 {
+			filterDesc = filterDesc[:27] + "..."
+		}
+		c.table.SetTitle(fmt.Sprintf(" 📋 Issues (%d/%d) [Filter: %s] ", len(displayIssues), len(c.issues), filterDesc))
+	} else {
+		c.table.SetTitle(fmt.Sprintf(" 📋 Active Issues (%d) ", len(c.issues)))
+	}
+
+	if len(displayIssues) == 0 {
+		msg := "  No cached issues found. Waiting for sync..."
+		if c.filterActive {
+			msg = "  No issues match selected filter. ([f] to edit filter)"
+		}
+		c.table.SetCell(0, 0, tview.NewTableCell(msg).SetTextColor(colorMuted))
+		c.detailView.SetText("[#7A869A]No issue selected[-]")
 		return
 	}
 
-	for i, iss := range c.issues {
+	for i, iss := range displayIssues {
 		keyCell := tview.NewTableCell(fmt.Sprintf(" %-7s", iss.Key)).
 			SetTextColor(tcell.ColorWhite).
 			SetAlign(tview.AlignLeft)
@@ -366,11 +421,12 @@ func (c *Cockpit) refreshIssuesTable() {
 }
 
 func (c *Cockpit) onIssueSelectionChanged(row int) {
-	if row < 0 || row >= len(c.issues) {
+	displayIssues := c.getDisplayIssues()
+	if row < 0 || row >= len(displayIssues) {
 		c.detailView.SetText("[#7A869A]No issue selected[-]")
 		return
 	}
-	c.detailView.SetText(buildDetailCardText(&c.issues[row]))
+	c.detailView.SetText(buildDetailCardText(&displayIssues[row]))
 	c.detailView.ScrollToBeginning()
 }
 
@@ -380,27 +436,210 @@ func (c *Cockpit) refreshActivities() {
 }
 
 func (c *Cockpit) openCurrentIssueInBrowser() {
+	displayIssues := c.getDisplayIssues()
 	row, _ := c.table.GetSelection()
-	if row >= 0 && row < len(c.issues) {
-		url := formatIssueURL(c.baseURL, c.issues[row].Key)
+	if row >= 0 && row < len(displayIssues) {
+		url := formatIssueURL(c.baseURL, displayIssues[row].Key)
 		err := openInBrowser(url)
 		if err != nil {
 			c.setStatus(fmt.Sprintf("Failed to open browser: %v", err))
 		} else {
-			c.setStatus(fmt.Sprintf("Opened %s in web browser", c.issues[row].Key))
+			c.setStatus(fmt.Sprintf("Opened %s in web browser", displayIssues[row].Key))
 		}
 	}
 }
 
 func (c *Cockpit) setCurrentIssueActive() {
+	displayIssues := c.getDisplayIssues()
 	row, _ := c.table.GetSelection()
-	if row >= 0 && row < len(c.issues) {
-		key := c.issues[row].Key
+	if row >= 0 && row < len(displayIssues) {
+		key := displayIssues[row].Key
 		if c.cacheDB != nil {
 			_ = c.cacheDB.SetActiveIssue(key)
 		}
 		c.setStatus(fmt.Sprintf("Active ticket set to [%s] (Saved to local cache)", key))
 	}
+}
+
+func (c *Cockpit) showStatusFilterModal() {
+	statuses := GetUniqueStatuses(c.issues)
+	if len(statuses) == 0 {
+		c.setStatus("No issues/statuses available to filter")
+		return
+	}
+
+	tempSelection := make(map[string]bool)
+	if c.filterActive {
+		for k, v := range c.selectedStatuses {
+			tempSelection[k] = v
+		}
+	} else {
+		for _, s := range statuses {
+			tempSelection[s] = false
+		}
+	}
+
+	filterTable := tview.NewTable().
+		SetSelectable(true, false).
+		SetBorders(false)
+
+	renderRows := func() {
+		filterTable.Clear()
+		for i, st := range statuses {
+			checkText := tview.Escape("[ ]")
+			textColor := colorMuted
+			if tempSelection[st] {
+				checkText = tview.Escape("[x]")
+				textColor = colorGreen
+			}
+			badge := formatStatusBadgeTview(st)
+
+			cellCheck := tview.NewTableCell(fmt.Sprintf(" %s ", checkText)).
+				SetTextColor(textColor).
+				SetAlign(tview.AlignLeft)
+			cellBadge := tview.NewTableCell(badge).
+				SetAlign(tview.AlignLeft)
+			cellName := tview.NewTableCell(fmt.Sprintf(" %s", tview.Escape(st))).
+				SetTextColor(tcell.ColorWhite).
+				SetExpansion(1).
+				SetAlign(tview.AlignLeft)
+
+			filterTable.SetCell(i, 0, cellCheck)
+			filterTable.SetCell(i, 1, cellBadge)
+			filterTable.SetCell(i, 2, cellName)
+		}
+	}
+	renderRows()
+
+	filterTable.SetSelectedStyle(tcell.StyleDefault.
+		Background(colorDarkNavy).
+		Foreground(tcell.ColorWhite).
+		Bold(true))
+
+	closeModal := func() {
+		c.pages.RemovePage("filterModal")
+		c.app.SetFocus(c.table)
+	}
+
+	filterTable.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		row, _ := filterTable.GetSelection()
+		if row < 0 {
+			row = 0
+		}
+		if row >= len(statuses) {
+			row = len(statuses) - 1
+		}
+
+		switch event.Key() {
+		case tcell.KeyEsc:
+			closeModal()
+			c.setStatus("Filter unchanged")
+			return nil
+		case tcell.KeyEnter:
+			selectedCount := 0
+			for _, st := range statuses {
+				if tempSelection[st] {
+					selectedCount++
+				}
+			}
+
+			if selectedCount == len(statuses) || selectedCount == 0 {
+				c.filterActive = false
+				c.selectedStatuses = make(map[string]bool)
+				c.applyFilter()
+				closeModal()
+				c.refreshIssuesTable()
+				c.setStatus(fmt.Sprintf("Filter cleared (showing all %d issues)", len(c.issues)))
+			} else {
+				c.filterActive = true
+				c.selectedStatuses = make(map[string]bool)
+				for k, v := range tempSelection {
+					c.selectedStatuses[k] = v
+				}
+				c.applyFilter()
+				closeModal()
+				c.refreshIssuesTable()
+				c.setStatus(fmt.Sprintf("Filter applied: %d/%d issues matching", len(c.filteredIssues), len(c.issues)))
+			}
+			displayIssues := c.getDisplayIssues()
+			if len(displayIssues) > 0 {
+				c.table.Select(0, 0)
+				c.onIssueSelectionChanged(0)
+			}
+			return nil
+		}
+
+		switch event.Rune() {
+		case ' ':
+			if row >= 0 && row < len(statuses) {
+				st := statuses[row]
+				tempSelection[st] = !tempSelection[st]
+				renderRows()
+				filterTable.Select(row, 0)
+			}
+			return nil
+		case 'j':
+			if row < len(statuses)-1 {
+				filterTable.Select(row+1, 0)
+			}
+			return nil
+		case 'k':
+			if row > 0 {
+				filterTable.Select(row-1, 0)
+			}
+			return nil
+		case 'u':
+			for _, st := range statuses {
+				tempSelection[st] = IsUnresolvedStatus(st)
+			}
+			renderRows()
+			filterTable.Select(row, 0)
+			return nil
+		case 'a':
+			for _, st := range statuses {
+				tempSelection[st] = true
+			}
+			renderRows()
+			filterTable.Select(row, 0)
+			return nil
+		case 'c':
+			for _, st := range statuses {
+				tempSelection[st] = false
+			}
+			renderRows()
+			filterTable.Select(row, 0)
+			return nil
+		}
+
+		return event
+	})
+
+	helpView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetTextAlign(tview.AlignCenter).
+		SetText("[#7A869A][Space] Toggle  [u] Unresolved  [a] All  [c] Clear\n[Enter] Apply  [ESC] Cancel[-]")
+
+	modalContent := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(filterTable, 0, 1, true).
+		AddItem(helpView, 2, 0, false)
+
+	modalContent.SetBorder(true).
+		SetTitle(" 🔍 Status Filter (OR Selection) ").
+		SetBorderColor(colorJiraBlue)
+
+	modalHeight := len(statuses) + 6
+	if modalHeight > 18 {
+		modalHeight = 18
+	}
+	if modalHeight < 9 {
+		modalHeight = 9
+	}
+	modalWidth := 56
+
+	modalWrapper := centerModal(modalContent, modalWidth, modalHeight)
+	c.pages.AddPage("filterModal", modalWrapper, true, true)
+	c.app.SetFocus(filterTable)
 }
 
 func (c *Cockpit) triggerSync() {
@@ -427,6 +666,7 @@ func (c *Cockpit) triggerSync() {
 
 			if len(fresh) > 0 {
 				c.issues = fresh
+				c.applyFilter()
 				c.refreshIssuesTable()
 				row, _ := c.table.GetSelection()
 				c.onIssueSelectionChanged(row)
@@ -471,6 +711,7 @@ func (c *Cockpit) startEventListener(ctx context.Context) {
 					if c.cacheDB != nil {
 						if fresh, err := c.cacheDB.GetIssues(c.space, ""); err == nil && len(fresh) > 0 {
 							c.issues = fresh
+							c.applyFilter()
 							c.refreshIssuesTable()
 							row, _ := c.table.GetSelection()
 							c.onIssueSelectionChanged(row)
@@ -487,5 +728,5 @@ func (c *Cockpit) startEventListener(ctx context.Context) {
 func RunTUI(ctx context.Context, space, baseURL string, engine *pkg.WatchEngine, cache *pkg.CacheDB, client *pkg.Client) error {
 	cockpit := NewCockpit(space, baseURL, engine, cache, client)
 	cockpit.startEventListener(ctx)
-	return cockpit.app.SetRoot(cockpit.rootFlex, true).EnableMouse(true).Run()
+	return cockpit.app.SetRoot(cockpit.pages, true).EnableMouse(true).Run()
 }

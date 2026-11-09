@@ -197,3 +197,159 @@ func TestWidgets_Formatting_And_Escaping(t *testing.T) {
 		t.Errorf("expected header to contain title and space, got:\n%s", header)
 	}
 }
+
+func TestTUI_Filter_Utilities(t *testing.T) {
+	// 1. Test IsUnresolvedStatus
+	if !IsUnresolvedStatus("To Do") {
+		t.Errorf("expected 'To Do' to be unresolved")
+	}
+	if !IsUnresolvedStatus("해야 할 일") {
+		t.Errorf("expected '해야 할 일' to be unresolved")
+	}
+	if !IsUnresolvedStatus("진행 중") {
+		t.Errorf("expected '진행 중' to be unresolved")
+	}
+	if !IsUnresolvedStatus("In Review") {
+		t.Errorf("expected 'In Review' to be unresolved")
+	}
+	if IsUnresolvedStatus("완료") {
+		t.Errorf("expected '완료' to be resolved")
+	}
+	if IsUnresolvedStatus("Done") {
+		t.Errorf("expected 'Done' to be resolved")
+	}
+	if IsUnresolvedStatus("Closed") {
+		t.Errorf("expected 'Closed' to be resolved")
+	}
+
+	// 2. Test GetUniqueStatuses
+	issues := []pkg.Issue{
+		{Key: "JC-1", Fields: pkg.IssueFields{Status: pkg.Status{Name: "To Do"}}},
+		{Key: "JC-2", Fields: pkg.IssueFields{Status: pkg.Status{Name: "In Progress"}}},
+		{Key: "JC-3", Fields: pkg.IssueFields{Status: pkg.Status{Name: "To Do"}}},
+		{Key: "JC-4", Fields: pkg.IssueFields{Status: pkg.Status{Name: "Done"}}},
+		{Key: "JC-5", Fields: pkg.IssueFields{Status: pkg.Status{Name: "In Progress"}}},
+	}
+
+	unique := GetUniqueStatuses(issues)
+	expected := []string{"To Do", "In Progress", "Done"}
+	if len(unique) != len(expected) {
+		t.Fatalf("expected %d unique statuses, got %d", len(expected), len(unique))
+	}
+	for i, s := range expected {
+		if unique[i] != s {
+			t.Errorf("expected status %d to be '%s', got '%s'", i, s, unique[i])
+		}
+	}
+
+	// 3. Test FilterIssuesByStatus
+	filterSelection := map[string]bool{
+		"To Do":       true,
+		"In Progress": true,
+	}
+	filtered := FilterIssuesByStatus(issues, filterSelection)
+	if len(filtered) != 4 {
+		t.Fatalf("expected 4 issues after filter, got %d", len(filtered))
+	}
+	for _, iss := range filtered {
+		if iss.Fields.Status.Name == "Done" {
+			t.Errorf("unexpected issue with status 'Done' in filtered result: %s", iss.Key)
+		}
+	}
+
+	// Empty filter returns all issues
+	allFiltered := FilterIssuesByStatus(issues, nil)
+	if len(allFiltered) != len(issues) {
+		t.Errorf("expected nil filter to return all %d issues, got %d", len(issues), len(allFiltered))
+	}
+}
+
+func TestCockpit_StatusFilter_Modal_And_Filtering(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_tui_filter.db")
+	cache, err := pkg.OpenCacheDB(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open cache: %v", err)
+	}
+	defer cache.Close()
+
+	sampleIssues := []pkg.Issue{
+		{Key: "JC-1", Fields: pkg.IssueFields{Summary: "Task 1", Status: pkg.Status{Name: "할 일"}}},
+		{Key: "JC-2", Fields: pkg.IssueFields{Summary: "Task 2", Status: pkg.Status{Name: "진행 중"}}},
+		{Key: "JC-3", Fields: pkg.IssueFields{Summary: "Task 3", Status: pkg.Status{Name: "완료"}}},
+		{Key: "JC-4", Fields: pkg.IssueFields{Summary: "Task 4", Status: pkg.Status{Name: "검토 중"}}},
+	}
+	_ = cache.UpsertIssues("JC", sampleIssues)
+
+	cockpit := NewCockpit("JC", "https://example.atlassian.net", nil, cache, nil)
+
+	if len(cockpit.issues) != 4 {
+		t.Fatalf("expected 4 issues, got %d", len(cockpit.issues))
+	}
+	if cockpit.table.GetRowCount() != 4 {
+		t.Fatalf("expected 4 table rows, got %d", cockpit.table.GetRowCount())
+	}
+
+	// 1. Initial State: Filter is not active
+	if cockpit.filterActive {
+		t.Errorf("expected filterActive to be false initially")
+	}
+
+	// 2. Open Modal
+	cockpit.showStatusFilterModal()
+	if !cockpit.pages.HasPage("filterModal") {
+		t.Fatalf("expected filterModal page to be active")
+	}
+
+	// 3. Test Apply Filter programmatically
+	cockpit.filterActive = true
+	cockpit.selectedStatuses = map[string]bool{
+		"할 일":  true,
+		"진행 중": true,
+	}
+	cockpit.applyFilter()
+	cockpit.refreshIssuesTable()
+
+	if len(cockpit.filteredIssues) != 2 {
+		t.Fatalf("expected 2 filtered issues, got %d", len(cockpit.filteredIssues))
+	}
+	if cockpit.table.GetRowCount() != 2 {
+		t.Fatalf("expected 2 table rows after filter, got %d", cockpit.table.GetRowCount())
+	}
+
+	// Check table title reflects filter
+	title := cockpit.table.GetTitle()
+	if !strings.Contains(title, "2/4") || !strings.Contains(title, "Filter") {
+		t.Errorf("expected table title to show (2/4) and Filter, got: %s", title)
+	}
+
+	// 4. Test Navigation and detail view with filtered issues
+	cockpit.table.Select(0, 0)
+	cockpit.onIssueSelectionChanged(0)
+	detailText := cockpit.detailView.GetText(true)
+	expectedKey0 := cockpit.filteredIssues[0].Key
+	if !strings.Contains(detailText, expectedKey0) {
+		t.Errorf("expected row 0 to contain %s, got:\n%s", expectedKey0, detailText)
+	}
+
+	cockpit.table.Select(1, 0)
+	cockpit.onIssueSelectionChanged(1)
+	detailText2 := cockpit.detailView.GetText(true)
+	expectedKey1 := cockpit.filteredIssues[1].Key
+	if !strings.Contains(detailText2, expectedKey1) {
+		t.Errorf("expected row 1 to contain %s, got:\n%s", expectedKey1, detailText2)
+	}
+
+	// 5. Test Clear Filter
+	cockpit.filterActive = false
+	cockpit.selectedStatuses = make(map[string]bool)
+	cockpit.applyFilter()
+	cockpit.refreshIssuesTable()
+
+	if len(cockpit.getDisplayIssues()) != 4 {
+		t.Fatalf("expected 4 display issues after clearing filter, got %d", len(cockpit.getDisplayIssues()))
+	}
+	if cockpit.table.GetRowCount() != 4 {
+		t.Fatalf("expected 4 table rows after clearing filter, got %d", cockpit.table.GetRowCount())
+	}
+}

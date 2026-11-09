@@ -15,6 +15,39 @@ verified: true
 
 본 문서는 `knowledge/` 번들 내 지식 자산의 생성, 코드 변경에 따른 동기화 및 검증 이력을 기록합니다.
 
+## 2026-11-01 (Fix: 캐시 저장 시 티켓 본래의 Project Space 정규화 및 데이터 정제)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. 캐시 저장 로직 정상화 (`pkg/cache.go`):
+     - `UpsertIssues` 시 외부에서 넘겨받은 `space` 인자로 무조건 덮어쓰던 문제를 수정.
+     - 각 이슈 객체의 실제 프로젝트 키(`issue.Fields.Project.Key`) 및 티켓 키 접두사를 우선 판별하는 `resolveIssueSpace` 도입.
+     - 타 프로젝트 티켓(예: `TDL-*`)이 현재 활성 프로필(`FMP`)의 space 값으로 오염 저장되는 버그 원천 차단.
+  2. 기존 오염 데이터 마이그레이션 (`initSchema`):
+     - DB 오픈 시 기존에 `space`가 잘못 기록되어 있던 레코드들을 자신의 실제 키 접두사(`TDL` 등)로 자동 보정.
+  3. 검증:
+     - `pkg/cache_test.go`: `TestCacheDB_SpaceIsolation_AcrossProjects` 복수 프로젝트 동시 Upsert 및 Space 격리 테스트 통과.
+     - 실제 `~/.cache/jira/state.db`에서 `TDL` 티켓(4건)이 `space = 'TDL'`로 정상 분리 완료.
+     - `go test ./...` 100% Pass 및 `make install` 배포 완료.
+
+## 2026-11-01 (JC-20: Cockpit TUI 다중 상태 필터링 및 팝업 모달 구현)
+- **작업 티켓**: [JC-20](https://joincdream.atlassian.net/browse/JC-20)
+- **작성자**: Antigravity AI Assistant & 윤상배
+- **변경 사항**:
+  1. Cockpit TUI 상태 필터링 엔진 구현 (`internal/tui/app.go`, `internal/tui/widgets.go`):
+     - 이슈 목록에서 고유 상태명을 동적 추출하는 `GetUniqueStatuses()` 및 OR 조건 필터링 함수 `FilterIssuesByStatus()` 추가.
+     - 미해결 상태 판별 유틸리티 `IsUnresolvedStatus()` 구현.
+     - `Cockpit` 구조체에 `pages`, `filteredIssues`, `selectedStatuses`, `filterActive` 상태 추가.
+  2. 다중 선택 상태 필터 모달 컴포넌트 (`showStatusFilterModal`):
+     - 단축키 `f`를 통해 팝업 모달 오버레이 노출.
+     - 키바인딩: `Space`(토글), `u`(미해결 일괄 선택), `a`(전체 선택), `c`(전체 해제), `Enter`(적용), `ESC`(취소).
+  3. 실시간 테이블 렌더링 및 피드백 연동:
+     - 필터 적용 시 `Issues (N/Total) [Filter: Status1, Status2]` 헤더 타이틀 표시.
+     - 활성 필터 상태에서 실시간 동기화/이벤트 수신 시 필터 조건 유지.
+     - 하단 도움말에 `[f] Filter` 단축키 안내 추가.
+  4. 검증:
+     - `internal/tui/tui_test.go`: 필터 유틸리티 및 Cockpit 필터 모달/적용/해제 단위 테스트 4건 100% Pass.
+     - `go test ./...` 및 `make install` 검증 완료.
+
 ## 2026-10-19 (Watch: Key-Value 단일 스토어 기반 멱등적 Live Activity 감지 엔진 전면 리팩토링)
 - **작성자**: Antigravity AI Assistant & 윤상배
 - **변경 사항**:

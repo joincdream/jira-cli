@@ -10,7 +10,7 @@ import (
 	"tools/jira/pkg"
 )
 
-const DefaultVersion = "1.5.0"
+const DefaultVersion = "1.0.0"
 
 // ClientProvider is a factory function for obtaining a Jira Client.
 type ClientProvider func() (*pkg.Client, error)

@@ -114,9 +114,23 @@ func (c *CacheDB) initSchema() error {
 		key TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	);
+
+	-- Data integrity migration: update any issues where space does not match the key prefix
+	UPDATE issues SET space = UPPER(SUBSTR(key, 1, INSTR(key, '-') - 1))
+	WHERE INSTR(key, '-') > 1 AND space != UPPER(SUBSTR(key, 1, INSTR(key, '-') - 1));
 	`
 	_, err := c.db.Exec(ddl)
 	return err
+}
+
+func resolveIssueSpace(issue Issue, fallbackSpace string) string {
+	if strings.TrimSpace(issue.Fields.Project.Key) != "" {
+		return strings.ToUpper(strings.TrimSpace(issue.Fields.Project.Key))
+	}
+	if parts := strings.SplitN(issue.Key, "-", 2); len(parts) == 2 && strings.TrimSpace(parts[0]) != "" {
+		return strings.ToUpper(strings.TrimSpace(parts[0]))
+	}
+	return strings.ToUpper(strings.TrimSpace(fallbackSpace))
 }
 
 // Close closes the underlying SQLite database connection.
@@ -187,7 +201,6 @@ func (c *CacheDB) UpsertIssues(space string, issues []Issue) error {
 	}
 	defer stmt.Close()
 
-	spaceUpper := strings.ToUpper(space)
 	for _, issue := range issues {
 		rawJSON, err := json.Marshal(issue)
 		if err != nil {
@@ -198,6 +211,8 @@ func (c *CacheDB) UpsertIssues(space string, issues []Issue) error {
 		if issue.Fields.Assignee != nil {
 			assignee = issue.Fields.Assignee.DisplayName
 		}
+
+		issueSpace := resolveIssueSpace(issue, space)
 
 		updatedAt := time.Now()
 		if issue.Fields.Updated != "" {
@@ -210,7 +225,7 @@ func (c *CacheDB) UpsertIssues(space string, issues []Issue) error {
 
 		_, err = stmt.Exec(
 			issue.Key,
-			spaceUpper,
+			issueSpace,
 			issue.Fields.Summary,
 			issue.Fields.Status.Name,
 			assignee,

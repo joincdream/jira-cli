@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -259,4 +260,55 @@ func TestCacheDB_Concurrency(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestCacheDB_SpaceIsolation_AcrossProjects(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_cache_isolation.db")
+
+	cache, err := OpenCacheDB(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open cache: %v", err)
+	}
+	defer cache.Close()
+
+	// Issues from two different projects, upserted together with space="FMP"
+	mixedIssues := []Issue{
+		{Key: "FMP-1", Fields: IssueFields{Summary: "FMP Task 1", Status: Status{Name: "To Do"}}},
+		{Key: "FMP-2", Fields: IssueFields{Summary: "FMP Task 2", Status: Status{Name: "In Progress"}}},
+		{Key: "TDL-1", Fields: IssueFields{Summary: "TDL Task 1", Status: Status{Name: "To Do"}}},
+		{Key: "TDL-2", Fields: IssueFields{Summary: "TDL Task 2", Status: Status{Name: "Done"}}},
+	}
+
+	if err := cache.UpsertIssues("FMP", mixedIssues); err != nil {
+		t.Fatalf("failed to upsert: %v", err)
+	}
+
+	// 1. Query space FMP: should ONLY return FMP issues
+	fmpIssues, err := cache.GetIssues("FMP", "all")
+	if err != nil {
+		t.Fatalf("failed to get FMP issues: %v", err)
+	}
+	if len(fmpIssues) != 2 {
+		t.Fatalf("expected 2 FMP issues, got %d", len(fmpIssues))
+	}
+	for _, iss := range fmpIssues {
+		if !strings.HasPrefix(iss.Key, "FMP-") {
+			t.Errorf("unexpected issue in FMP space: %s", iss.Key)
+		}
+	}
+
+	// 2. Query space TDL: should ONLY return TDL issues
+	tdlIssues, err := cache.GetIssues("TDL", "all")
+	if err != nil {
+		t.Fatalf("failed to get TDL issues: %v", err)
+	}
+	if len(tdlIssues) != 2 {
+		t.Fatalf("expected 2 TDL issues, got %d", len(tdlIssues))
+	}
+	for _, iss := range tdlIssues {
+		if !strings.HasPrefix(iss.Key, "TDL-") {
+			t.Errorf("unexpected issue in TDL space: %s", iss.Key)
+		}
+	}
 }

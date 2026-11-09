@@ -199,3 +199,64 @@ func openInBrowser(url string) error {
 	}
 	return cmd.Start()
 }
+
+// IsUnresolvedStatus returns true if the given status represents an active, non-completed workflow state.
+func IsUnresolvedStatus(status string) bool {
+	norm := strings.ToLower(strings.TrimSpace(status))
+	resolvedKeywords := []string{
+		"완료", "해결", "닫힘", "종료", "취소",
+		"done", "resolved", "closed", "cancelled", "canceled",
+	}
+	for _, kw := range resolvedKeywords {
+		if strings.Contains(norm, kw) {
+			return false
+		}
+	}
+	return true
+}
+
+// GetUniqueStatuses extracts all unique status names from the provided issue list in order of appearance.
+func GetUniqueStatuses(issues []pkg.Issue) []string {
+	seen := make(map[string]bool)
+	var list []string
+	for _, iss := range issues {
+		st := strings.TrimSpace(iss.Fields.Status.Name)
+		if st == "" {
+			st = "Unknown"
+		}
+		if !seen[st] {
+			seen[st] = true
+			list = append(list, st)
+		}
+	}
+	return list
+}
+
+// FilterIssuesByStatus filters the given issue list against a set of enabled status names (OR condition).
+func FilterIssuesByStatus(issues []pkg.Issue, selectedStatuses map[string]bool) []pkg.Issue {
+	if len(selectedStatuses) == 0 {
+		return issues
+	}
+	var filtered []pkg.Issue
+	for _, iss := range issues {
+		st := strings.TrimSpace(iss.Fields.Status.Name)
+		if st == "" {
+			st = "Unknown"
+		}
+		if selectedStatuses[st] {
+			filtered = append(filtered, iss)
+		}
+	}
+	return filtered
+}
+
+// centerModal wraps a primitive in a centered flex container of fixed dimensions.
+func centerModal(p tview.Primitive, width, height int) tview.Primitive {
+	return tview.NewFlex().
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+			AddItem(nil, 0, 1, false).
+			AddItem(p, height, 1, true).
+			AddItem(nil, 0, 1, false), width, 1, true).
+		AddItem(nil, 0, 1, false)
+}

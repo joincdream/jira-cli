@@ -1,0 +1,12 @@
+{
+  "obsidian-chatlog": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "~/.local/bin/chatlog hook",
+        "timeout": 10
+      }
+    ]
+  }
+}
