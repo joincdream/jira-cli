@@ -10,7 +10,7 @@ tags:
   - markdown
   - json
 status: stable
-timestamp: 2026-10-17T12:45:00+09:00
+timestamp: 2026-11-09T22:04:00+09:00
 sources:
   - internal/app/commands_issue.go
   - internal/app/commands_user.go
@@ -227,7 +227,14 @@ jira list --assignee me --status open --detail --md
   - 우측 상단 (55%): 선택된 티켓 상세 카드 (키, 상태, 담당자, 설명 ADF 파싱 텍스트)
   - 우측 하단 (45%): 백그라운드 Diffing 엔진이 수집한 실시간 변경 피드 (Activity Stream)
   - 상단/하단: 연결 스페이스 배지, 실시간 동기화 상태 (`LIVE WATCHING`), 단축키 레퍼런스
-- **단축키**: `↑/↓`, `j/k`(이동), `r`(즉시 동기화), `o`(브라우저 열기), `c`(활성 티켓 설정), `ESC`(브리핑 닫기), `q`(종료).
+- **단축키**:
+  - `↑/↓`, `j/k`: 목록/커서 이동
+  - `f`: 상태 다중 필터 모달 열기 (`Space` 토글, `u` 미해결 일괄 선택, `a` 전체 선택, `c` 전체 해제, `Enter` 적용, `ESC` 취소)
+  - `r`: 즉시 원격 데이터 동기화
+  - `o`: 현재 선택된 이슈 기본 웹 브라우저로 열기
+  - `c`: 선택된 이슈를 전역 활성 티켓으로 설정
+  - `ESC`: 브리핑/모달 닫기
+  - `q`: Cockpit 대시보드 종료
 - **AltScreen 버퍼**: 종료 시 화면이 원래 터미널로 완전히 복원됩니다.
 
 ### 2) CLI 실시간 스트리머 (`jira watch`)
